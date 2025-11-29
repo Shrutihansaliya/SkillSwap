@@ -338,10 +338,11 @@
 // pages/Admin/updateProfile.jsx
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { toast } from "react-toastify";
 import { useAdmin } from "../../context/AdminContext.jsx";
 
 const UpdateProfile = () => {
-  const { user, message, setMessage } = useAdmin();
+  const { user } = useAdmin();
 
   const [form, setForm] = useState({
     Username: "",
@@ -367,7 +368,7 @@ const UpdateProfile = () => {
     const fetchData = async () => {
       try {
         if (!userId) {
-          setMessage("User not found. Please login again.");
+          toast.error("User not found. Please login again.");
           setLoading(false);
           return;
         }
@@ -377,7 +378,6 @@ const UpdateProfile = () => {
           axios.get("http://localhost:4000/api/users/active-cities"),
         ]);
 
-        // handle cities
         let cityList = [];
         if (citiesRes.data?.success && Array.isArray(citiesRes.data.cities)) {
           cityList = citiesRes.data.cities;
@@ -386,9 +386,8 @@ const UpdateProfile = () => {
         }
         setCities(cityList);
 
-        // handle user profile
         if (!profileRes.data?.success) {
-          setMessage(profileRes.data?.message || "Failed to load profile.");
+          toast.error(profileRes.data?.message || "Failed to load profile.");
           setLoading(false);
           return;
         }
@@ -398,7 +397,9 @@ const UpdateProfile = () => {
         setForm({
           Username: u.Username || "",
           Email: u.Email || "",
-          DateOfBirth: u.DateOfBirth ? new Date(u.DateOfBirth).toISOString().split("T")[0] : "",
+          DateOfBirth: u.DateOfBirth
+            ? new Date(u.DateOfBirth).toISOString().split("T")[0]
+            : "",
           Gender: u.Gender || "",
           StreetNo: u.StreetNo || "",
           Area: u.Area || "",
@@ -411,10 +412,14 @@ const UpdateProfile = () => {
           Bio: u.Bio || "",
         });
 
-        setPreview(u.ProfileImageURL ? `http://localhost:4000${u.ProfileImageURL}` : "");
+        setPreview(
+          u.ProfileImageURL
+            ? `http://localhost:4000${u.ProfileImageURL}`
+            : ""
+        );
       } catch (err) {
         console.error("Load profile error:", err);
-        setMessage("Error loading profile.");
+        toast.error("Error loading profile.");
       } finally {
         setLoading(false);
       }
@@ -436,27 +441,27 @@ const UpdateProfile = () => {
 
   const validateBeforeSubmit = () => {
     if (!form.Username || form.Username.length < 3) {
-      setMessage("Username must be at least 3 characters.");
+      toast.error("Username must be at least 3 characters.");
       return false;
     }
     if (!form.Email) {
-      setMessage("Email is required.");
+      toast.error("Email is required.");
       return false;
     }
     if (!form.DateOfBirth) {
-      setMessage("Date of birth is required.");
+      toast.error("Date of birth is required.");
       return false;
     }
     if (!form.Gender) {
-      setMessage("Gender is required.");
+      toast.error("Gender is required.");
       return false;
     }
     if (!form.StreetNo || !form.Area || !form.City) {
-      setMessage("StreetNo, Area and City are required.");
+      toast.error("StreetNo, Area and City are required.");
       return false;
     }
     if (!/^\d{10}$/.test(form.ContactNo || "")) {
-      setMessage("Contact number must be 10 digits.");
+      toast.error("Contact number must be 10 digits.");
       return false;
     }
     return true;
@@ -464,7 +469,6 @@ const UpdateProfile = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setMessage("");
 
     if (!validateBeforeSubmit()) return;
 
@@ -474,16 +478,14 @@ const UpdateProfile = () => {
       fd.append("Username", form.Username);
       fd.append("Email", form.Email);
       fd.append("DateOfBirth", form.DateOfBirth);
-
-      // FIXED: gender was not being sent earlier
       fd.append("Gender", form.Gender);
-
       fd.append("StreetNo", form.StreetNo);
       fd.append("Area", form.Area);
       fd.append("City", form.City);
       fd.append("ContactNo", form.ContactNo);
       fd.append("Bio", form.Bio ?? "");
- fd.append("gender", form.Gender ?? "");
+      fd.append("gender", form.Gender ?? "");
+
       if (file) fd.append("profileImage", file);
 
       const res = await axios.put(
@@ -495,7 +497,7 @@ const UpdateProfile = () => {
       );
 
       if (!res.data?.success) {
-        setMessage(res.data?.message || "Update failed.");
+        toast.error(res.data?.message || "Update failed.");
         return;
       }
 
@@ -504,12 +506,18 @@ const UpdateProfile = () => {
       const merged = { ...(storedUser || {}), ...(updated || {}) };
       localStorage.setItem("user", JSON.stringify(merged));
 
-      setPreview(updated.ProfileImageURL ? `http://localhost:4000${updated.ProfileImageURL}` : preview);
-      setMessage("✅ Profile updated successfully!");
+      setPreview(
+        updated.ProfileImageURL
+          ? `http://localhost:4000${updated.ProfileImageURL}`
+          : preview
+      );
+
+      toast.success("Profile updated successfully!");
     } catch (err) {
       console.error("Update profile error:", err);
-      const serverMsg = err?.response?.data?.message || err?.response?.data?.error;
-      setMessage(serverMsg || "❌ Failed to update profile.");
+      const serverMsg =
+        err?.response?.data?.message || err?.response?.data?.error;
+      toast.error(serverMsg || "Failed to update profile.");
     }
   };
 
@@ -521,12 +529,6 @@ const UpdateProfile = () => {
       <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
         Update Profile
       </h2>
-
-      {message && (
-        <div className="mb-5 text-center text-sm font-medium text-blue-600">
-          {message}
-        </div>
-      )}
 
       <form onSubmit={onSubmit} className="space-y-5">
         {/* Image */}
@@ -540,7 +542,12 @@ const UpdateProfile = () => {
           </div>
 
           <label className="cursor-pointer text-gray-600 hover:text-gray-800">
-            <input type="file" accept="image/*" onChange={onFileChange} className="hidden" />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onFileChange}
+              className="hidden"
+            />
             <span className="px-4 py-2 bg-gray-200 rounded-md shadow hover:bg-gray-300 transition">
               Change Image
             </span>
@@ -572,7 +579,9 @@ const UpdateProfile = () => {
           </div>
 
           <div>
-            <label className="block text-gray-600 font-medium">Date of Birth</label>
+            <label className="block text-gray-600 font-medium">
+              Date of Birth
+            </label>
             <input
               type="date"
               name="DateOfBirth"
@@ -582,7 +591,6 @@ const UpdateProfile = () => {
             />
           </div>
 
-          {/* FIXED → Gender was not updating earlier */}
           <div>
             <label className="block text-gray-600 font-medium">Gender</label>
             <select
@@ -620,7 +628,6 @@ const UpdateProfile = () => {
             />
           </div>
 
-          {/* FIXED CITY BINDING */}
           <div>
             <label className="block text-gray-600 font-medium">City</label>
             <select
@@ -645,7 +652,9 @@ const UpdateProfile = () => {
           </div>
 
           <div>
-            <label className="block text-gray-600 font-medium">Contact No</label>
+            <label className="block text-gray-600 font-medium">
+              Contact No
+            </label>
             <input
               type="text"
               name="ContactNo"
@@ -677,4 +686,5 @@ const UpdateProfile = () => {
 };
 
 export default UpdateProfile;
+
 // 690f0c6de69125f47d216c7d

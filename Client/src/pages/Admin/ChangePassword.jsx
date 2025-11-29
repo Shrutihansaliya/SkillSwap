@@ -2,9 +2,11 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useAdmin } from "../../context/AdminContext.jsx";
+import { toast } from "react-toastify";          // ⭐ ADDED
+import "react-toastify/dist/ReactToastify.css";   // ⭐ ADDED
 
 const ChangePassword = () => {
-  const { user } = useAdmin(); // get admin user from context
+  const { user } = useAdmin(); 
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
@@ -18,22 +20,22 @@ const ChangePassword = () => {
     setSuccessMsg("");
 
     if (!currentPw || !newPw || !confirmPw) {
-      setErrorMsg("Please fill all fields.");
+      toast.error("Please fill all fields.");   // ⭐ replaced
       return;
     }
 
     if (newPw !== confirmPw) {
-      setErrorMsg("New passwords do not match.");
+      toast.error("New passwords do not match.");  // ⭐ replaced
       return;
     }
 
     if (newPw === currentPw) {
-      setErrorMsg("New password must be different from current password.");
+      toast.error("New password must be different from current password."); // ⭐ replaced
       return;
     }
 
     if (!user?._id) {
-      setErrorMsg("Admin not found. Please login again.");
+      toast.error("Admin not found. Please login again."); // ⭐ replaced
       return;
     }
 
@@ -50,16 +52,16 @@ const ChangePassword = () => {
       );
 
       if (res.data.success) {
-        setSuccessMsg(res.data.message);
+        toast.success(res.data.message); // ⭐ replaced
         setCurrentPw("");
         setNewPw("");
         setConfirmPw("");
       } else {
-        setErrorMsg(res.data.message);
+        toast.error(res.data.message);   // ⭐ replaced
       }
     } catch (err) {
       console.error(err);
-      setErrorMsg(err.response?.data?.message || "Something went wrong.");
+      toast.error(err.response?.data?.message || "Something went wrong."); // ⭐ replaced
     }
 
     setLoading(false);
@@ -70,13 +72,6 @@ const ChangePassword = () => {
       <h2 className="text-2xl font-bold text-indigo-600 mb-6 text-center">
         Change Password
       </h2>
-
-      {errorMsg && (
-        <p className="text-red-600 text-sm mb-3 text-center">{errorMsg}</p>
-      )}
-      {successMsg && (
-        <p className="text-green-600 text-sm mb-3 text-center">{successMsg}</p>
-      )}
 
       <form className="flex flex-col gap-4" onSubmit={handleChangePassword}>
         <input
@@ -108,6 +103,9 @@ const ChangePassword = () => {
           {loading ? "Updating..." : "Update Password"}
         </button>
       </form>
+
+      {/* ⭐ Toast Container */}
+      <toast.ToastContainer />
     </div>
   );
 };

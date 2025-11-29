@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { toast } from "react-toastify";
 
 const SubscriptionPlans = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ Name: "", SwapLimit: "", Price: "" });
   const [editId, setEditId] = useState(null);
-  const [message, setMessage] = useState("");
   const [errors, setErrors] = useState({});
 
   // Fetch all subscription plans
@@ -18,7 +18,7 @@ const SubscriptionPlans = () => {
       setPlans(res.data.data || []);
     } catch (err) {
       console.error(err);
-      setMessage("Failed to fetch plans");
+      toast.error("Failed to fetch plans");
     } finally {
       setLoading(false);
     }
@@ -28,37 +28,23 @@ const SubscriptionPlans = () => {
     fetchPlans();
   }, []);
 
-  // Handle input change with stricter validation
-  // const handleChange = (e) => {
-  //   const { name, value } = e.target;
+  // Input validation
+  const handleChange = (e) => {
+    const { name, value } = e.target;
 
-  //   if (name === "Name") {
-  //     if (!/^[A-Za-z0-9 ]*$/.test(value)) return;
-  //   } else if (name === "SwapLimit" || name === "Price") {
-  //     if (!/^\d*\.?\d*$/.test(value)) return;
-  //   }
+    if (name === "Name") {
+      if (!/^[A-Za-z0-9 ]*$/.test(value)) return;
+    } else if (name === "SwapLimit") {
+      if (!/^\d*$/.test(value)) return;
+    } else if (name === "Price") {
+      if (!/^\d*\.?\d*$/.test(value)) return;
+    }
 
-  //   setForm({ ...form, [name]: value });
-  //   setErrors((prev) => ({ ...prev, [name]: "" }));
-  // };
-const handleChange = (e) => {
-  const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
 
-  if (name === "Name") {
-    if (!/^[A-Za-z0-9 ]*$/.test(value)) return;
-  } 
-  else if (name === "SwapLimit") {
-    if (!/^\d*$/.test(value)) return;   // ✅ NO DECIMALS
-  }
-  else if (name === "Price") {
-    if (!/^\d*\.?\d*$/.test(value)) return;  // Price still supports decimals
-  }
-
-  setForm({ ...form, [name]: value });
-  setErrors((prev) => ({ ...prev, [name]: "" }));
-};
-
-  // Validate inputs before submit
+  // Validate inputs
   const validateForm = () => {
     let newErrors = {};
 
@@ -70,7 +56,7 @@ const handleChange = (e) => {
       newErrors.SwapLimit = "Swap Limit must be greater than 0.";
 
     if (!form.Price || Number(form.Price) <= 0)
-      newErrors.Price = "Price must be greater than 0 (e.g., 99.00).";
+      newErrors.Price = "Price must be greater than 0.";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -93,13 +79,13 @@ const handleChange = (e) => {
           `http://localhost:4000/api/subscription-plans/update/${editId}`,
           payload
         );
-        setMessage("Plan updated successfully");
+        toast.success("Plan updated successfully");
       } else {
         await axios.post(
           "http://localhost:4000/api/subscription-plans/add",
           payload
         );
-        setMessage("Plan added successfully");
+        toast.success("Plan added successfully");
       }
 
       setForm({ Name: "", SwapLimit: "", Price: "" });
@@ -107,7 +93,7 @@ const handleChange = (e) => {
       fetchPlans();
     } catch (err) {
       console.error(err);
-      setMessage("Failed to save plan");
+      toast.error("Failed to save plan");
     }
   };
 
@@ -122,7 +108,6 @@ const handleChange = (e) => {
     });
     setEditId(plan._id);
     setErrors({});
-    setMessage("");
   };
 
   // Toggle Active/Inactive
@@ -136,6 +121,7 @@ const handleChange = (e) => {
       fetchPlans();
     } catch (err) {
       console.error(err);
+      toast.error("Failed to update plan status");
     }
   };
 
@@ -144,53 +130,46 @@ const handleChange = (e) => {
   const activePlans = plans.filter((plan) => plan.status === "Active");
   const inactivePlans = plans.filter((plan) => plan.status === "Inactive");
 
-  // same 5 colors pattern: blue, red, green, purple, yellow
   const accentColors = [
-  {
-    header: "bg-blue-800",
-    primaryBtn:
-      "bg-blue-800 text-white hover:bg-blue-900 border border-blue-900",
-    secondaryBtn:
-      "bg-white text-blue-800 border border-blue-800 hover:bg-blue-50",
-  },
-  {
-    header: "bg-red-800",
-    primaryBtn:
-      "bg-red-800 text-white hover:bg-red-900 border border-red-900",
-    secondaryBtn:
-      "bg-white text-red-800 border border-red-800 hover:bg-red-50",
-  },
-  {
-    header: "bg-green-800",
-    primaryBtn:
-      "bg-green-800 text-white hover:bg-green-900 border border-green-900",
-    secondaryBtn:
-      "bg-white text-green-800 border border-green-800 hover:bg-green-50",
-  },
-  {
-    header: "bg-purple-800",
-    primaryBtn:
-      "bg-purple-800 text-white hover:bg-purple-900 border border-purple-900",
-    secondaryBtn:
-      "bg-white text-purple-800 border border-purple-800 hover:bg-purple-50",
-  },
-  {
-    header: "bg-yellow-700",
-    primaryBtn:
-      "bg-yellow-700 text-white hover:bg-yellow-800 border border-yellow-800",
-    secondaryBtn:
-      "bg-white text-yellow-700 border border-yellow-700 hover:bg-yellow-50",
-  },
-];
+    {
+      header: "bg-blue-800",
+      primaryBtn:
+        "bg-blue-800 text-white hover:bg-blue-900 border border-blue-900",
+      secondaryBtn:
+        "bg-white text-blue-800 border border-blue-800 hover:bg-blue-50",
+    },
+    {
+      header: "bg-red-800",
+      primaryBtn:
+        "bg-red-800 text-white hover:bg-red-900 border border-red-900",
+      secondaryBtn:
+        "bg-white text-red-800 border border-red-800 hover:bg-red-50",
+    },
+    {
+      header: "bg-green-800",
+      primaryBtn:
+        "bg-green-800 text-white hover:bg-green-900 border border-green-900",
+      secondaryBtn:
+        "bg-white text-green-800 border border-green-800 hover:bg-green-50",
+    },
+    {
+      header: "bg-purple-800",
+      primaryBtn:
+        "bg-purple-800 text-white hover:bg-purple-900 border border-purple-900",
+      secondaryBtn:
+        "bg-white text-purple-800 border border-purple-800 hover:bg-purple-50",
+    },
+    {
+      header: "bg-yellow-700",
+      primaryBtn:
+        "bg-yellow-700 text-white hover:bg-yellow-800 border border-yellow-800",
+      secondaryBtn:
+        "bg-white text-yellow-700 border border-yellow-700 hover:bg-yellow-50",
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      {message && (
-        <div className="mb-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
-          {message}
-        </div>
-      )}
-
       {/* Header */}
       <div className="rounded-2xl border border-white/60 bg-gradient-to-r from-sky-50 via-indigo-50 to-purple-50 px-6 py-5 shadow-sm">
         <h2 className="text-xl font-semibold text-gray-800">
@@ -201,7 +180,7 @@ const handleChange = (e) => {
         </p>
       </div>
 
-      {/* Form */}
+      {/* FORM */}
       <div className="rounded-xl border border-gray-100 bg-white/80 p-5 shadow-sm">
         <h3 className="mb-4 text-lg font-semibold text-gray-800">
           {editId ? "Edit Plan" : "Add New Plan"}
@@ -284,10 +263,11 @@ const handleChange = (e) => {
           <div className="mt-3 flex flex-wrap gap-3">
             <button
               type="submit"
-              className="rounded-full bg-gradient-to-r from-indigo-300 to-sky-300 px-5 py-2 text-sm font-medium text-gray-800 shadow-sm hover:from-indigo-400 hover:to-sky-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="rounded-full bg-gradient-to-r from-indigo-300 to-sky-300 px-5 py-2 text-sm font-medium text-gray-800 shadow-sm hover:from-indigo-400 hover:to-sky-400"
             >
               {editId ? "Update Plan" : "Add Plan"}
             </button>
+
             {editId && (
               <button
                 type="button"
@@ -305,7 +285,7 @@ const handleChange = (e) => {
         </form>
       </div>
 
-      {/* ACTIVE PLANS – 4 cards per row, full square */}
+      {/* ACTIVE PLANS */}
       <div className="space-y-3">
         <h2 className="text-lg font-semibold text-gray-800">Active Plans</h2>
 
@@ -319,7 +299,6 @@ const handleChange = (e) => {
                   key={plan._id}
                   className="bg-white shadow-md border border-gray-200 overflow-hidden flex flex-col"
                 >
-                  {/* Top colored strip */}
                   <div
                     className={`${accent.header} h-16 w-full px-4 flex items-center justify-between`}
                   >
@@ -331,7 +310,6 @@ const handleChange = (e) => {
                     </span>
                   </div>
 
-                  {/* Body */}
                   <div className="px-6 py-5 text-center">
                     <p className="text-sm text-gray-600">Subscription Plan</p>
 
@@ -356,7 +334,6 @@ const handleChange = (e) => {
                       </div>
                     </div>
 
-                    {/* Buttons */}
                     <div className="mt-5 flex gap-3">
                       <button
                         onClick={() => handleEdit(plan)}
@@ -382,7 +359,7 @@ const handleChange = (e) => {
         )}
       </div>
 
-      {/* INACTIVE PLANS – 4 per row, square */}
+      {/* INACTIVE PLANS */}
       {inactivePlans.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-gray-800">
@@ -399,7 +376,6 @@ const handleChange = (e) => {
                   key={plan._id}
                   className="bg-white shadow-md border border-gray-200 overflow-hidden flex flex-col"
                 >
-                  {/* Top colored strip */}
                   <div
                     className={`${accent.header} h-16 w-full px-4 flex items-center justify-between opacity-80`}
                   >
@@ -411,7 +387,6 @@ const handleChange = (e) => {
                     </span>
                   </div>
 
-                  {/* Body */}
                   <div className="px-6 py-5 text-center">
                     <p className="text-sm text-gray-600">Subscription Plan</p>
 
@@ -436,7 +411,6 @@ const handleChange = (e) => {
                       </div>
                     </div>
 
-                    {/* Buttons */}
                     <div className="mt-5 flex gap-3">
                       <button
                         onClick={() => handleStatusToggle(plan)}

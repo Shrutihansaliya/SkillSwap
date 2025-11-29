@@ -1,6 +1,7 @@
 // pages/AddCity.jsx
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { toast } from "react-toastify"; // ✅ added
 
 const AddCity = () => {
   const [cities, setCities] = useState([]);
@@ -18,7 +19,7 @@ const AddCity = () => {
       setMessage("");
     } catch (err) {
       console.error("Error fetching cities:", err.response?.data || err.message);
-      setMessage("Error fetching cities: " + (err.response?.data?.message || err.message));
+      toast.error(err.response?.data?.message || "Error fetching cities"); // ✅
     }
   };
 
@@ -29,12 +30,12 @@ const AddCity = () => {
   // Add or Update City
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!cityName.trim()) return alert("City name is required");
+    if (!cityName.trim()) return toast.warning("City name is required"); // ✅
 
     try {
       if (editId) {
         const res = await axios.put(`${API_URL}/${editId}`, { cityName });
-        setMessage("City updated successfully");
+        toast.success("City updated successfully"); // ✅
 
         // Update local state without refetching
         setCities((prev) =>
@@ -42,15 +43,16 @@ const AddCity = () => {
         );
       } else {
         const res = await axios.post(API_URL, { cityName });
-        setMessage("City added successfully");
+        toast.success("City added successfully"); // ✅
         setCities((prev) => [...prev, res.data.city]);
       }
 
       setCityName("");
       setEditId(null);
+
     } catch (err) {
       console.error("Error:", err.response?.data || err.message);
-      setMessage(err.response?.data?.message || "Something went wrong");
+      toast.error(err.response?.data?.message || "Something went wrong"); // ✅
     }
   };
 
@@ -71,9 +73,16 @@ const AddCity = () => {
           c._id === updatedCity._id ? { ...c, status: updatedCity.status } : c
         )
       );
+
+      toast.success(
+        updatedCity.status === "Active"
+          ? "City activated"
+          : "City deactivated"
+      ); // ✅
+
     } catch (err) {
       console.error("Error toggling city:", err.response?.data || err.message);
-      setMessage(err.response?.data?.message || "Something went wrong");
+      toast.error(err.response?.data?.message || "Something went wrong"); // ✅
     }
   };
 
@@ -127,27 +136,24 @@ const AddCity = () => {
                   <tr key={city._id}>
                     <td className="border p-2">{city.cityName}</td>
                     <td className="border p-2">
-  <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        {/* EDIT BUTTON */}
+                        <button
+                          onClick={() => handleEdit(city)}
+                          className="flex items-center gap-1 bg-green-100 text-green-800 px-4 py-1.5 rounded-xl border border-green-300 hover:bg-green-200 transition"
+                        >
+                          ✏ Edit
+                        </button>
 
-    {/* EDIT BUTTON */}
-    <button
-      onClick={() => handleEdit(city)}
-      className="flex items-center gap-1 bg-green-100 text-green-800 px-4 py-1.5 rounded-xl border border-green-300 hover:bg-green-200 transition"
-    >
-      ✏ Edit
-    </button>
-
-    {/* DEACTIVATE BUTTON */}
-    <button
-      onClick={() => handleToggle(city)}
-      className="flex items-center gap-1 bg-[#2F3A4A] text-white px-4 py-1.5 hover:bg-[#1e2733] transition"
-    >
-      Deactivate
-    </button>
-
-  </div>
-</td>
-
+                        {/* DEACTIVATE BUTTON */}
+                        <button
+                          onClick={() => handleToggle(city)}
+                          className="flex items-center gap-1 bg-[#2F3A4A] text-white px-4 py-1.5 hover:bg-[#1e2733] transition"
+                        >
+                          Deactivate
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               ) : (
@@ -177,14 +183,13 @@ const AddCity = () => {
                   <tr key={city._id}>
                     <td className="border p-2">{city.cityName}</td>
                     <td className="border p-2">
-  <button
-    onClick={() => handleToggle(city)}
-    className="flex items-center gap-1 bg-green-600 text-white px-4 py-1.5 hover:bg-green-700 transition"
-  >
-  Activate
-  </button>
-</td>
-
+                      <button
+                        onClick={() => handleToggle(city)}
+                        className="flex items-center gap-1 bg-green-600 text-white px-4 py-1.5 hover:bg-green-700 transition"
+                      >
+                        Activate
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (

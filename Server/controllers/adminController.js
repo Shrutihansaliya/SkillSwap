@@ -2,7 +2,7 @@ import User from "../models/User.js";
 import UserSkill from "../models/UserSkill.js";
 import Skill from "../models/Skill.js";
 import bcrypt from "bcryptjs";
-
+import SkillCategory from "../models/SkillCategory.js";
 // Get all members with their skills
 // export const getMembers = async (req, res) => {
 //   try {
@@ -33,13 +33,41 @@ import bcrypt from "bcryptjs";
 //   }
 // };
 // Get all members with their skills + city
+// ==============================================
+//      UPDATED getMembers with FILTER SUPPORT
+// ==============================================
+
+
+
 export const getMembers = async (req, res) => {
   try {
-    // all members with city populated
-    const users = await User.find({ Role: "member" })
-      .populate("City") // City collection
-      .lean();
+    const { categoryId, skillId, search } = req.query;
 
+    // 1️⃣ Build base user filter (role = member)
+    let userFilter = { Role: "member" };
+
+    // 2️⃣ TEXT SEARCH ON USERNAME / EMAIL / CITY
+    if (search && search.trim() !== "") {
+      const q = new RegExp(search.trim(), "i"); // case-insensitive
+      userFilter.$or = [
+        { Username: q },
+        { Email: q },
+        { ContactNo: q },
+      ];
+    }
+
+    // Get all members based on search filter
+    let users = await User.find(userFilter).populate("City").lean();
+
+    // If city name search needed → filter after populate
+    if (search && search.trim() !== "") {
+      const q = search.trim().toLowerCase();
+      users = users.filter(u =>
+        u.City?.cityName?.toLowerCase().includes(q)
+      );
+    }
+
+    // 3️⃣ Get user skill data
     const usersWithSkills = await Promise.all(
       users.map(async (user) => {
         const userSkills = await UserSkill.find({ UserId: user._id }).lean();
@@ -50,6 +78,8 @@ export const getMembers = async (req, res) => {
             if (!skill) return null;
 
             return {
+              SkillId: skill.SkillId,
+              CategoryId: skill.CategoryId,
               Name: skill.Name,
               CertificateURL: us.CertificateURL,
               ContentFileURL: us.ContentFileURL,
@@ -68,12 +98,29 @@ export const getMembers = async (req, res) => {
       })
     );
 
-    res.json({ success: true, data: usersWithSkills });
+    let filteredMembers = [...usersWithSkills];
+
+    // 4️⃣ CATEGORY FILTER
+    if (categoryId) {
+      filteredMembers = filteredMembers.filter(m =>
+        m.Skills.some(s => String(s.CategoryId) === String(categoryId))
+      );
+    }
+
+    // 5️⃣ SKILL FILTER
+    if (skillId) {
+      filteredMembers = filteredMembers.filter(m =>
+        m.Skills.some(s => String(s.SkillId) === String(skillId))
+      );
+    }
+
+    res.json({ success: true, data: filteredMembers });
   } catch (err) {
     console.error("Get members error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 // Change password
 export const changePassword = async (req, res) => {
   try {
