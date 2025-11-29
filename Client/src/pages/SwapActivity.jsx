@@ -1,6 +1,8 @@
 // pages/SwapActivity.jsx
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
+import { toast } from "react-toastify";
+
 import {
   FaVideo,
   FaComments,
@@ -61,7 +63,8 @@ const SwapActivity = () => {
       if (res.data.success) setSwaps(res.data.swaps || []);
     } catch (err) {
       console.error("fetchSwaps error:", err);
-      alert("Failed to load swaps");
+      toast.error("Failed to load swaps");
+
     } finally {
       setLoading(false);
     }
@@ -149,14 +152,17 @@ const SwapActivity = () => {
 
   const ensureParticipant = (actionName = "perform this action") => {
     if (!selectedSwap) {
-      alert("Please select a swap first.");
+      toast.info("Please select a swap first.");
+
       return false;
     }
 
     const result = isParticipant(selectedSwap);
     if (!result) {
       console.warn("⛔ Blocked:", { action: actionName, user, selectedSwap });
-      alert("⚠️ You are not part of this swap. Check backend data structure.");
+      // alert("⚠️ You are not part of this swap. Check backend data structure.");
+      toast.warning("⚠️ You are not part of this swap. Check backend data structure.");
+
     }
     return result;
   };
@@ -232,11 +238,13 @@ const SwapActivity = () => {
     ];
     const ext = file.name.split(".").pop().toLowerCase();
     if (!allowedExtensions.includes(ext)) {
-      alert("❌ Invalid file type!");
+     toast.error("❌ Invalid file type!");
+
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      alert("⚠️ Max size 10 MB");
+      toast.warning("⚠️ Max size 10 MB");
+
       return;
     }
 
@@ -254,7 +262,8 @@ const SwapActivity = () => {
       );
 
       if (res.data.success) {
-        alert("✅ Upload OK");
+        toast.success("✅ Upload OK");
+
         setMaterialsReload((r) => r + 1);
         setActivePanel("materials");
       } else {
@@ -264,7 +273,8 @@ const SwapActivity = () => {
       console.error("upload err:", err);
       const serverMsg =
         err?.response?.data?.message || err?.message || "Upload failed";
-      alert(`Upload failed: ${serverMsg}`);
+     toast.error(`Upload failed: ${serverMsg}`);
+
     }
   };
 
@@ -284,12 +294,14 @@ const SwapActivity = () => {
     if (!file) return;
     const ext = file.name.split(".").pop().toLowerCase();
     if (ext !== "mp4") {
-      alert("❌ Only MP4 files are allowed.");
+     toast.error("❌ Only MP4 files are allowed.");
+
       e.target.value = "";
       return;
     }
     if (file.size > 1024 * 1024 * 1024) {
-      alert("⚠️ Max size is 1 GB.");
+     toast.warning("⚠️ Max size is 1 GB.");
+
       e.target.value = "";
       return;
     }
@@ -297,9 +309,10 @@ const SwapActivity = () => {
   };
 
   const submitVideoUpload = async () => {
-    if (!uploadFile) return alert("Please select a video file (.mp4)");
+    if (!uploadFile) return toast.info("Please select a video file (.mp4)");
     if (!uploadDescription || !uploadDescription.trim())
-      return alert("Please enter a description");
+      return toast.info("Please enter a description");
+
     try {
       setUploading(true);
       setUploadProgress(0);
@@ -324,7 +337,8 @@ const SwapActivity = () => {
       );
 
       if (res.data.success) {
-        alert("✅ Video uploaded.");
+       toast.success("✅ Video uploaded.");
+
         setShowUploadModal(false);
         setUploadFile(null);
         setUploadDescription("");
@@ -335,7 +349,8 @@ const SwapActivity = () => {
       }
     } catch (err) {
       console.error("video upload err", err);
-      alert(err?.response?.data?.message || "Upload failed");
+      toast.error(err?.response?.data?.message || "Upload failed");
+
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -360,8 +375,9 @@ const SwapActivity = () => {
     const alreadyConfirmed = Boolean(selectedSwap?.Confirmations?.[myKey]);
 
     if (selectedSwap?.Status === "Completed")
-      return alert("✅ This swap is already completed.");
-    if (alreadyConfirmed) return alert("ℹ️ You have already confirmed this swap.");
+      return toast.info("✅ This swap is already completed.");
+ 
+    if (alreadyConfirmed) return toast.info("ℹ️ You have already confirmed this swap.");
     if (!window.confirm("Have you completed this swap? Confirm to mark as done."))
       return;
 
@@ -377,7 +393,8 @@ const SwapActivity = () => {
       );
 
       if (res.data.success) {
-        alert(res.data.message);
+       toast.success(res.data.message);
+
         setSelectedSwap((prev) => ({
           ...prev,
           Confirmations: res.data.swap.Confirmations,
@@ -386,12 +403,13 @@ const SwapActivity = () => {
         }));
         fetchSwaps();
       } else {
-        alert(res.data.message || "Failed to confirm swap");
+        toast.error(res.data.message || "Failed to confirm swap");
         setSelectedSwap((prev) => ({ ...prev, isConfirming: false }));
       }
     } catch (err) {
       console.error("Confirm swap error:", err.response?.data || err);
-      alert(err.response?.data?.message || "❌ Error confirming swap");
+     toast.error(err.response?.data?.message || "❌ Error confirming swap");
+
       setSelectedSwap((prev) => ({ ...prev, isConfirming: false }));
     }
   };

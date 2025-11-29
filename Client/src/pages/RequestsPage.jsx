@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { FiUser } from "react-icons/fi";
+import { toast } from "react-toastify";   // ✅ added
 
 const RequestsPage = () => {
   const [activeTab, setActiveTab] = useState("sent");
@@ -41,13 +42,14 @@ const RequestsPage = () => {
   // Cancel request
   const handleCancel = async (id) => {
     if (!window.confirm("Are you sure you want to cancel this request?")) return;
+
     try {
       await axios.delete(`http://localhost:4000/api/requests/cancel/${id}`);
       await loadRequests();
-      alert("Request cancelled successfully");
+      toast.success("Request cancelled successfully");  // ✅ replaced alert
     } catch (err) {
       console.error("Cancel error:", err);
-      alert("Failed to cancel request");
+      toast.error("Failed to cancel request");          // ✅ replaced alert
     }
   };
 
@@ -58,27 +60,29 @@ const RequestsPage = () => {
       await axios.post(
         `http://localhost:4000/api/requests/swap/confirm/${requestId}`
       );
-      alert("Skill swap confirmed successfully!");
+
+      toast.success("Skill swap confirmed successfully!"); // ✅ alert → toast
       await loadRequests();
     } catch (err) {
       console.error("Error confirming swap:", err);
-      alert("Failed to confirm swap.");
+      toast.error("Failed to confirm swap.");              // ✅ replaced alert
     }
   };
 
   // Reject request
   const handleReject = async (id) => {
     if (!window.confirm("Reject this request?")) return;
+
     try {
       await axios.put(
         `http://localhost:4000/api/requests/status/${id}`,
         { status: "Rejected" }
       );
       await loadRequests();
-      alert("Request rejected.");
+      toast.success("Request rejected.");                 // ✅ alert → toast
     } catch (err) {
       console.error("Reject error:", err);
-      alert("Failed to reject request");
+      toast.error("Failed to reject request");            // ✅ replaced alert
     }
   };
 
@@ -93,7 +97,7 @@ const RequestsPage = () => {
       const senderId = req.SenderId?._id || req.SenderId;
       if (!senderId) {
         console.error("Missing SenderId in request", req);
-        alert("Sender information missing.");
+        toast.error("Sender information missing.");      // ✅ replaced alert
         return;
       }
 
@@ -103,7 +107,7 @@ const RequestsPage = () => {
       const skills = res.data.skills || [];
 
       if (!skills.length) {
-        alert("No skills found for this sender.");
+        toast.error("No skills found for this sender."); // ✅ replaced alert
         setAcceptModalOpen(false);
         return;
       }
@@ -117,14 +121,15 @@ const RequestsPage = () => {
       setSenderSkills(normalized);
     } catch (err) {
       console.error("Error fetching sender skills:", err);
-      alert("Failed to load sender's skills.");
+      toast.error("Failed to load sender's skills.");    // ✅ replaced alert
       setAcceptModalOpen(false);
     }
   };
 
   const handleConfirmAccept = async () => {
     if (!acceptingReq) return;
-    if (!selectedSkillToTeach) return alert("Please select a skill.");
+    if (!selectedSkillToTeach)
+      return toast.error("Please select a skill.");       // ✅ alert → toast
 
     try {
       await axios.put(
@@ -134,14 +139,14 @@ const RequestsPage = () => {
         }
       );
 
-      alert("Request accepted successfully.");
+      toast.success("Request accepted successfully.");    // ✅ replaced alert
       setAcceptModalOpen(false);
       setAcceptingReq(null);
       setSelectedSkillToTeach("");
       await loadRequests();
     } catch (err) {
       console.error("Error accepting request:", err);
-      alert("Failed to accept request.");
+      toast.error("Failed to accept request.");           // ✅ replaced alert
     }
   };
 

@@ -33,6 +33,8 @@ export default function MySkill({ userId }) {
   const [categories, setCategories] = useState([]);
   const [skillsByCategory, setSkillsByCategory] = useState([]);
   const [successMsg, setSuccessMsg] = useState("");
+  const [pdfText, setPdfText] = useState("");
+const [loadingPdf, setLoadingPdf] = useState(false);
 
   const [formData, setFormData] = useState({
     CategoryId: "",
@@ -120,20 +122,30 @@ export default function MySkill({ userId }) {
     setShowModal(true);
   };
 
-  const openEditModal = (item) => {
-    // item is the skill object returned from API
-    setEditingSkill(item);
-    setFormData({
-      CategoryId: "",
-      SkillId: item.SkillId || "",
-      Source: item.Source || "",
-      Certificate: null,
-      ContentFile: null,
-    });
-    setSkillsByCategory([]);
-    setError("");
-    setShowModal(true);
-  };
+ const openEditModal = async (item) => {
+  setEditingSkill(item);
+  setFormData({
+    CategoryId: "",
+    SkillId: item.SkillId || "",
+    Source: item.Source || "",
+    Certificate: null,
+    ContentFile: null,
+  });
+
+  setError("");
+  setShowModal(true);
+
+  // Load existing PDF
+  setLoadingPdf(true);
+  try {
+    const res = await axios.get(`${API_BASE}/api/myskills/content/${item._id}`);
+    setPdfText(res.data.text || "");
+  } catch (e) {
+    setPdfText("Could not read PDF content.");
+  }
+  setLoadingPdf(false);
+};
+
 
   /* -------------------- file validation -------------------- */
   const validatePdfFile = (file) => {
@@ -186,6 +198,9 @@ export default function MySkill({ userId }) {
       if (formData.Source) fd.append("Source", formData.Source);
       if (formData.Certificate) fd.append("Certificate", formData.Certificate);
       if (formData.ContentFile) fd.append("ContentFile", formData.ContentFile);
+      if (editingSkill) {
+  fd.append("EditedText", pdfText);
+}
 
       if (editingSkill) {
         // Update: editingSkill._id expected by backend route
@@ -588,6 +603,32 @@ export default function MySkill({ userId }) {
                   </p>
                 )}
               </div>
+                {editingSkill && (
+  <>
+    <label className="block text-sm font-semibold text-gray-700 mb-1">
+      Edit PDF Content
+    </label>
+
+    {loadingPdf ? (
+      <p className="text-gray-500 text-sm">Loading PDF content...</p>
+    ) : (
+      <>
+        <textarea
+          className="w-full border border-[#CBBFAE] px-3 py-2 h-48 rounded-md bg-white/80"
+          value={pdfText}
+          onChange={(e) => setPdfText(e.target.value)}
+        />
+
+        <div className="mt-4 p-3 border bg-white rounded">
+          <h4 className="text-md font-semibold text-gray-700">Live Preview</h4>
+          <div className="text-sm text-gray-800 whitespace-pre-line mt-2">
+            {pdfText || "Start typing to generate preview..."}
+          </div>
+        </div>
+      </>
+    )}
+  </>
+)}
 
               {error && (
                 <p className="text-red-600 text-sm">{error}</p>

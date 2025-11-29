@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { FiSearch, FiFileText, FiExternalLink, FiX } from "react-icons/fi";
+import { toast } from "react-toastify";   // ✅ added
 
 const SkillSwapRequests = () => {
   const [user, setUser] = useState(null);
@@ -90,9 +91,9 @@ const SkillSwapRequests = () => {
   };
 
   const sendRequest = async () => {
-    if (!selectedSkill) return alert("Please select a skill.");
-    if (!user?._id) return alert("User not found. Please login again.");
-    if (!selectedMember?._id) return alert("Member not found.");
+    if (!selectedSkill) return toast.error("Please select a skill.");  // ✅
+    if (!user?._id) return toast.error("User not found. Please login again.");  // ✅
+    if (!selectedMember?._id) return toast.error("Member not found.");  // ✅
 
     try {
       const res = await axios.post(
@@ -105,15 +106,15 @@ const SkillSwapRequests = () => {
       );
 
       if (res.data.success) {
-        alert("Request sent successfully!");
+        toast.success("Request sent successfully!");  // ✅
         setShowPopup(false);
         await fetchRequests();
       } else {
-        alert(res.data.message || "Failed to send request.");
+        toast.error(res.data.message || "Failed to send request.");  // ✅
       }
     } catch (err) {
       console.error("Error sending request:", err);
-      alert(err.response?.data?.message || "Error while sending request.");
+      toast.error(err.response?.data?.message || "Error while sending request.");  // ✅
     }
   };
 
@@ -329,7 +330,7 @@ const SkillSwapRequests = () => {
                         href={selectedSkillDetail.Source}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#A8BBA3]/25 hover:bg-[#A8BBA3]/45 border border-[#A8BBA3]/60 text-[#31513A] font-medium shadow-sm transition"
+                        className="inline-flex items-center gap=2 px-4 py-2 rounded-lg bg-[#A8BBA3]/25 hover:bg-[#A8BBA3]/45 border border-[#A8BBA3]/60 text-[#31513A] font-medium shadow-sm transition"
                       >
                         <FiExternalLink /> Open Source
                       </a>
@@ -417,7 +418,7 @@ const SkillSwapRequests = () => {
             return (
               <div
                 key={m._id}
-                className="bg-gradient-to-tr from-[#F7F4EA] via-white to-[#A8BBA3]/50 p-6 rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col justify-between border border-[#A8BBA3]/70"
+                className="bg-gradient-to-tr from-[#F7F4EA] via-white to-[#A8BBA3]/50 p-6 rounded-3xl shadow-lg hover:shadow-2xl transition-all duration=300 flex flex-col justify-between border border-[#A8BBA3]/70"
               >
                 {/* User Info */}
                 <div className="flex items-center gap-3 mb-4">
@@ -445,7 +446,7 @@ const SkillSwapRequests = () => {
                   </h4>
 
                   {m.Skills.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap=2">
                       {m.Skills.filter(
                         (s) => s.SkillAvailability === "Available"
                       ).map((s) => {
@@ -467,7 +468,7 @@ const SkillSwapRequests = () => {
                                 openSkillModal(s, m);
                               }}
                               disabled={disabledForSwap}
-                              className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
+                              className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition-all duration=300 ${
                                 disabledForSwap
                                   ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                                   : isActive
@@ -491,7 +492,7 @@ const SkillSwapRequests = () => {
                 <button
                   onClick={() => openPopup(m)}
                   disabled={isOutOfSwaps || isPending}
-                  className={`mt-4 w-full py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-300 ${
+                  className={`mt-4 w-full py-2 rounded-2xl text-sm font-semibold text-white transition-all duration=300 ${
                     isPending
                       ? "bg-gray-400 cursor-not-allowed"
                       : isOutOfSwaps

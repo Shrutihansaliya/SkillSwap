@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FiCamera, FiSave } from "react-icons/fi";
+import { toast } from "react-toastify";    // ✅ Added
 
 const Profile = () => {
   const [user, setUser] = useState(null);
@@ -19,7 +20,7 @@ const Profile = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(""); // (kept as-is for UI label)
 
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem("user"));
@@ -96,14 +97,18 @@ const Profile = () => {
         form,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
+
       if (res.data.success) {
+        toast.success("Profile updated successfully!");  // ✅ Toast added
         setMessage("✅ Profile updated successfully!");
         localStorage.setItem("user", JSON.stringify(res.data.user));
       } else {
+        toast.error(res.data.message);                  // ✅ Toast added
         setMessage("❌ " + res.data.message);
       }
     } catch (err) {
       console.error("Error updating profile:", err);
+      toast.error("Error updating profile");            // ✅ Toast added
       setMessage("❌ Error updating profile");
     } finally {
       setLoading(false);
@@ -181,7 +186,7 @@ const Profile = () => {
             </p>
           </div>
 
-          {[
+          {[ 
             { label: "Username", name: "Username", type: "text" },
             { label: "Email", name: "Email", type: "email" },
             { label: "Date of Birth", name: "DateOfBirth", type: "date" },

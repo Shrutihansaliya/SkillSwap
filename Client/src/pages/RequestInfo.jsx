@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { FiUser } from "react-icons/fi";
+import { toast } from "react-toastify";   // ✅ added
 
 const RequestInfo = () => {
   const [requests, setRequests] = useState([]);
@@ -32,13 +33,16 @@ const RequestInfo = () => {
   // Cancel (delete) a pending request
   const handleCancel = async (requestId) => {
     if (!window.confirm("Are you sure you want to cancel this request?")) return;
+
     try {
       await axios.delete(`http://localhost:4000/api/requests/${requestId}`);
+
       // Remove the cancelled request from state
       setRequests((prev) => prev.filter((r) => r._id !== requestId));
+      toast.success("Request cancelled successfully");   // ✅ replaced alert
     } catch (err) {
       console.error("Failed to cancel request:", err);
-      alert("Error cancelling request");
+      toast.error("Error cancelling request");           // ✅ replaced alert
     }
   };
 

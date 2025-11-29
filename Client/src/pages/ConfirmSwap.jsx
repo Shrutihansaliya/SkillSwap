@@ -66,20 +66,16 @@
 // export default ConfirmSwap;
 import { useState } from "react";
 import axios from "axios";
+import { toast } from "react-toastify";
 
-/**
- * ConfirmSwap.jsx
- * - Handles confirmation of swap completion
- * - Takes props: swap, user, and onConfirmed callback
- */
 const API_BASE = "http://localhost:4000";
 
 const ConfirmSwap = ({ swap, user, onConfirmed }) => {
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
-    if (!swap || !user) return alert("Missing data.");
-    if (swap.Status === "Completed") return alert("This swap is already completed.");
+    if (!swap || !user) return toast.error("Missing data.");
+    if (swap.Status === "Completed") return toast.info("This swap is already completed.");
 
     const senderId =
       swap.Sender?._id ||
@@ -89,27 +85,27 @@ const ConfirmSwap = ({ swap, user, onConfirmed }) => {
 
     const currentUserId = user._id || user.UserId;
     const myKey = senderId === currentUserId ? "SenderConfirmed" : "ReceiverConfirmed";
-    const alreadyConfirmed = Boolean(swap?.Confirmations?.[myKey]);
 
-    if (alreadyConfirmed) return alert("You have already confirmed this swap.");
+    if (swap?.Confirmations?.[myKey])
+      return toast.warning("You already confirmed this swap.");
 
-    if (!window.confirm("Have you completed this swap? Confirm to mark as done.")) return;
+    if (!window.confirm("Have you completed this swap?")) return;
 
     try {
       setLoading(true);
+
       const res = await axios.put(`${API_BASE}/api/swaps/${swap._id}/confirm`, {
         userId: user._id,
       });
 
       if (res.data.success) {
-        alert("✅ Swap confirmed!");
-        if (onConfirmed) onConfirmed();
+        toast.success("✔️ Swap confirmed!");
+        onConfirmed?.();
       } else {
-        alert(res.data.message || "Failed to confirm swap");
+        toast.error(res.data.message || "Failed to confirm swap");
       }
     } catch (err) {
-      console.error("Confirm swap error:", err);
-      alert(err.response?.data?.message || "Error confirming swap");
+      toast.error(err.response?.data?.message || "Error confirming swap");
     } finally {
       setLoading(false);
     }
@@ -128,7 +124,7 @@ const ConfirmSwap = ({ swap, user, onConfirmed }) => {
       className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium shadow-md transition-all ${
         loading || confirmDisabled
           ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-          : "bg-gradient-to-r from-green-400 to-green-500 text-white hover:from-green-500 hover:to-green-600"
+          : "bg-gradient-to-r from-green-400 to-green-500 text-white"
       }`}
     >
       {loading ? "Confirming..." : "✅ Confirm"}

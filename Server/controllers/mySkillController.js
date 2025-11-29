@@ -1,3 +1,14 @@
+// let pdfParse;
+// (async () => {
+//   const module = await import("pdf-parse");
+//   pdfParse = module.default || module; 
+// })();
+
+
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
+
 import fs from "fs";
 import path from "path";
 import mongoose from "mongoose";
@@ -6,6 +17,8 @@ import SkillSwap from "../models/SkillSwap.js";
 import Skill from "../models/Skill.js";
 import Category from "../models/SkillCategory.js";
 
+
+import PDFDocument from "pdfkit";
 /* ----------------------------------------------------------
    GET USER SKILLS
 ----------------------------------------------------------- */
@@ -70,36 +83,110 @@ export const addUserSkill = async (req, res) => {
   }
 };
 
-/* ----------------------------------------------------------
-   UPDATE SKILL
------------------------------------------------------------ */
-export const updateUserSkill = async (req, res) => {
+
+export const getPdfContent = async (req, res) => {
   try {
     const { skillId } = req.params;
 
     const skill = await UserSkill.findById(skillId);
-    if (!skill) return res.status(404).json({ success: false, message: "Skill not found" });
+    if (!skill || !skill.ContentFileURL)
+      return res.status(404).json({ success: false, message: "PDF not found" });
 
-    const { Source } = req.body;
+    const filePath = path.join(
+      process.cwd(),
+      skill.ContentFileURL.replace("/", "")
+    );
+
+    if (!fs.existsSync(filePath))
+      return res.status(404).json({ success: false, message: "PDF file missing" });
+
+    const dataBuffer = fs.readFileSync(filePath);
+
+    // 🔥 NOW pdfParse IS A FUNCTION
+    const parsed = await pdfParse(dataBuffer);
+
+    return res.json({
+      success: true,
+      text: parsed.text || "",
+      templateType: "main",
+    });
+  } catch (err) {
+    console.error("PDF read error:", err);
+    res.status(500).json({ success: false, message: "Failed to read PDF" });
+  }
+};
+
+
+
+/* ----------------------------------------------------------
+   UPDATE SKILL
+----------------------------------------------------------- */
+
+
+export const updateUserSkill = async (req, res) => {
+  try {
+    const { skillId } = req.params;
+    const { Source, EditedText } = req.body;
+
+    const skill = await UserSkill.findById(skillId);
+    if (!skill) return res.status(404).json({ success: false, message: "Skill not found" });
 
     if (Source !== undefined) skill.Source = Source;
 
+    // --- Certificate Update ---
     if (req.files?.Certificate?.[0]) {
       skill.CertificateURL = `/uploads/certificates/${req.files.Certificate[0].filename}`;
       skill.CertificateStatus = "Pending";
     }
 
-    if (req.files?.ContentFile?.[0]) {
-      skill.ContentFileURL = `/uploads/contentfiles/${req.files.ContentFile[0].filename}`;
+    // --- PDF Content Editing ---
+    if (EditedText && EditedText.trim()) {
+      // Delete old PDF
+      if (skill.ContentFileURL) {
+        const rel = skill.ContentFileURL.replace(/^\//, "");
+        const oldPath = path.join(process.cwd(), rel);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+
+      // Detect template on save
+      let templateType = "main";
+      const text = EditedText;
+
+      if (text.includes("-") && text.includes(",")) templateType = "sub";
+      if (text.includes("✓")) templateType = "main";
+      if (!text.includes(",") && !text.includes("-")) templateType = "plain";
+
+      // Fetch skill/category names
+      const skillDoc = await Skill.findOne({ SkillId: skill.SkillId });
+      const categoryDoc = await Category.findOne({ CategoryId: skillDoc.CategoryId });
+
+      // Generate new PDF
+      const fileName = `content_${skill.UserId}_${Date.now()}.pdf`;
+      const outputPdfPath = path.join("uploads", "contentfiles", fileName);
+
+      await generatePdfForSkill({
+        outputPdfPath,
+        logoPath: path.join(process.cwd(), "uploads/logo.png"),
+        categoryName: categoryDoc?.CategoryName || "",
+        skillName: skillDoc?.Name || "",
+        templateType,
+        templateData: text,
+        templateImagePath: null,
+      });
+
+      skill.ContentFileURL = "/uploads/contentfiles/" + fileName;
     }
 
     await skill.save();
-
     res.json({ success: true, message: "Skill updated", data: skill });
+
   } catch (err) {
+    console.error("UpdateSkill Error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+
 
 
 /* -----------------------------------------------------------

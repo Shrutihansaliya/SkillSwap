@@ -136,9 +136,9 @@
 
 // export default Report;
 
-
 import React, { useState } from "react";
 import axios from "axios";
+import { toast } from "react-toastify";   // ✅ Added
 
 const API_BASE = "http://localhost:4000";
 
@@ -184,8 +184,12 @@ export default function Report({ swap, user, onClose, onSubmitted }) {
 
   const submitReport = async () => {
     const reportedUserId = getOtherUserId(swap);
-    if (!reportedUserId) return alert("Unable to determine reported user");
-    if (!reason) return alert("Please select a reason");
+
+    if (!reportedUserId)
+      return toast.error("Unable to determine reported user");  // ✅ replaced
+
+    if (!reason)
+      return toast.warning("Please select a reason");            // ✅ replaced
 
     try {
       setLoading(true);
@@ -195,19 +199,21 @@ export default function Report({ swap, user, onClose, onSubmitted }) {
         description: description || "",
         evidence: [],
       };
+
       const res = await axios.post(`${API_BASE}/api/reports`, payload, {
         withCredentials: true,
       });
+
       if (res.data.success) {
-        alert("✅ Report submitted. Admin will review it soon.");
+        toast.success("Report submitted. Admin will review it soon."); // ✅ replaced
         onSubmitted?.();
         onClose?.();
       } else {
-        alert(res.data.message || "Failed to submit report");
+        toast.error(res.data.message || "Failed to submit report");    // ✅ replaced
       }
     } catch (err) {
       console.error("Report error:", err?.response?.data || err);
-      alert(err?.response?.data?.message || "Failed to send report");
+      toast.error(err?.response?.data?.message || "Failed to send report"); // ✅ replaced
     } finally {
       setLoading(false);
     }
@@ -268,6 +274,7 @@ export default function Report({ swap, user, onClose, onSubmitted }) {
           >
             Cancel
           </button>
+
           <button
             onClick={submitReport}
             className="px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] shadow-md hover:shadow-lg hover:scale-[1.02] transition-all disabled:opacity-60 disabled:cursor-not-allowed"

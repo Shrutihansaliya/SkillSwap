@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { FiBell, FiCheckCircle, FiArrowLeft } from "react-icons/fi";
+import { toast } from "react-toastify";   // ✅ Added
 
 function Notifications({ userId }) {
   const [notifications, setNotifications] = useState([]);
@@ -30,17 +31,20 @@ function Notifications({ userId }) {
   // 🔗 Handle click → Redirect to correct tab/page
   const openLink = (link) => {
     if (!link) return;
-    navigate(link); // automatic redirect to correct tab
+    navigate(link);
   };
 
   // ✅ Delete notification
   const deleteNotification = async (id, e) => {
-    e.stopPropagation(); // ⛔ prevent redirect on click
+    e.stopPropagation(); // ⛔ prevent redirect
     try {
       await axios.delete(`http://localhost:4000/api/notifications/${id}`);
+
       setNotifications((prev) => prev.filter((n) => n._id !== id));
     } catch (err) {
       console.error("Failed to delete notification:", err);
+
+      toast.error("Failed to delete notification");   // ✅ alert replaced
     }
   };
 
@@ -110,7 +114,7 @@ function Notifications({ userId }) {
                       {n.message}
                     </p>
 
-                    {/* ✅ delete notification */}
+                    {/* delete notification */}
                     <button
                       onClick={(e) => deleteNotification(n._id, e)}
                       className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full border text-xs

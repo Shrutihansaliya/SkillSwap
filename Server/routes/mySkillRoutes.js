@@ -32,7 +32,8 @@ import {
   addUserSkill,
   updateUserSkill,
   disableSkill,
-  reactivateSkill
+  reactivateSkill,
+  getPdfContent
 } from "../controllers/mySkillController.js";
 
 const router = express.Router();
@@ -85,6 +86,7 @@ router.post(
   ]),
   addUserSkill
 );
+router.get("/content/:skillId", getPdfContent);
 
 // 📌 Update skill
 router.put(

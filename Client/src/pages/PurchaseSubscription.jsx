@@ -253,6 +253,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FiCheck } from "react-icons/fi";
+import { toast } from "react-toastify";   // ✅ Added
 
 function PurchaseSubscription({ userId }) {
   const [plans, setPlans] = useState([]);
@@ -326,7 +327,7 @@ function PurchaseSubscription({ userId }) {
       );
 
       if (!res.data.success) {
-        alert(res.data.message || "Order creation failed");
+        toast.error(res.data.message || "Order creation failed");  // ✅ alert replaced
         setLoadingId(null);
         return;
       }
@@ -350,9 +351,10 @@ function PurchaseSubscription({ userId }) {
                 planId,
               }
             );
-            alert("Payment verified!");
+
+            toast.success("Payment verified!");   // ✅ alert replaced
           } catch {
-            alert("Payment failed to verify");
+            toast.error("Payment failed to verify"); // ✅
           }
           setLoadingId(null);
         },
@@ -361,7 +363,7 @@ function PurchaseSubscription({ userId }) {
 
       rzp.open();
     } catch {
-      alert("Payment failed");
+      toast.error("Payment failed");   // ✅ alert replaced
       setLoadingId(null);
     }
   };

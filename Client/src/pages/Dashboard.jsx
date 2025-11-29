@@ -16,6 +16,8 @@ import {
   FiLogOut,
 } from "react-icons/fi";
 
+import { toast } from "react-toastify";   // ✅ ADDED
+
 import Profile from "./profile.jsx";
 import SkillSwapRequest from "./SkillSwapRequest";
 import RequestsPage from "./RequestsPage.jsx";
@@ -95,6 +97,9 @@ function Dashboard() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+
+    toast.success("Logged out successfully!");   // ✅ CHANGED alert
+
     navigate("/login");
   };
 
@@ -104,15 +109,15 @@ function Dashboard() {
     setSuccessMsg("");
 
     if (!currentPw || !newPw || !confirmPw) {
-      setErrorMsg("Please fill all fields.");
+      toast.error("Please fill all fields.");   // ✅ alert → toast
       return;
     }
     if (newPw !== confirmPw) {
-      setErrorMsg("Passwords do not match.");
+      toast.error("Passwords do not match.");   // ✅
       return;
     }
     if (newPw === currentPw) {
-      setErrorMsg("New password must differ.");
+      toast.error("New password must differ."); // ✅
       return;
     }
 
@@ -122,16 +127,16 @@ function Dashboard() {
         { userId, currentPassword: currentPw, newPassword: newPw }
       );
       if (res.data.success) {
-        setSuccessMsg(res.data.message);
+        toast.success(res.data.message);        // ✅
         setCurrentPw("");
         setNewPw("");
         setConfirmPw("");
       } else {
-        setErrorMsg(res.data.message);
+        toast.error(res.data.message);          // ✅
       }
     } catch (err) {
       console.error(err);
-      setErrorMsg("Error updating password");
+      toast.error("Error updating password");  // ✅
     }
   };
 
@@ -274,8 +279,7 @@ function Dashboard() {
                 <div
                   className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full text-white font-semibold text-lg shadow-md border-2 border-[#F7F4EA] select-none"
                   style={{
-                    background:
-                      "linear-gradient(135deg, #B87C4C, #8E5C32)",
+                    background: "linear-gradient(135deg, #B87C4C, #8E5C32)",
                   }}
                 >
                   {user?.Username?.charAt(0)?.toUpperCase() || "U"}

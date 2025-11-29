@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { FaUpload } from "react-icons/fa";
+import { toast } from "react-toastify";   // ✅ Added
 
 const Materials = ({ selectedSwap, user, reloadSignal }) => {
   const [materials, setMaterials] = useState([]);
@@ -19,7 +20,6 @@ const Materials = ({ selectedSwap, user, reloadSignal }) => {
 
   useEffect(() => {
     if (selectedSwap) fetchMaterials();
-    // re-fetch when parent increments reloadSignal
   }, [selectedSwap, reloadSignal]);
 
   const handleUpload = async (file) => {
@@ -36,12 +36,13 @@ const Materials = ({ selectedSwap, user, reloadSignal }) => {
       "csv",
     ];
     const ext = file.name.split(".").pop().toLowerCase();
+
     if (!allowedExtensions.includes(ext)) {
-      alert("❌ Invalid file type!");
+      toast.error("❌ Invalid file type!");     // ✅ alert replaced
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      alert("⚠️ Max size 10 MB");
+      toast.warning("⚠️ Max size 10 MB");       // ✅ alert replaced
       return;
     }
 
@@ -63,7 +64,7 @@ const Materials = ({ selectedSwap, user, reloadSignal }) => {
       );
 
       if (res.data.success) {
-        alert("✅ Upload OK");
+        toast.success("✅ Upload OK");          // ✅ alert replaced
         fetchMaterials();
         setUploadProgress(100);
         setTimeout(() => {
@@ -72,12 +73,12 @@ const Materials = ({ selectedSwap, user, reloadSignal }) => {
         }, 1100);
       } else {
         setIsUploading(false);
-        alert(res.data.message || "Upload failed");
+        toast.error(res.data.message || "Upload failed"); // ✅
       }
     } catch (err) {
       console.error("upload err", err);
       setIsUploading(false);
-      alert(err.response?.data?.message || "Upload failed");
+      toast.error(err.response?.data?.message || "Upload failed"); // ✅
     }
   };
 
@@ -95,7 +96,7 @@ const Materials = ({ selectedSwap, user, reloadSignal }) => {
       link.remove();
     } catch (err) {
       console.error("Download failed:", err);
-      alert("Failed to download file. Please try again.");
+      toast.error("Failed to download file. Please try again."); // ✅ alert replaced
     }
   };
 
@@ -105,11 +106,12 @@ const Materials = ({ selectedSwap, user, reloadSignal }) => {
       const res = await axios.delete(`/api/materials/${mat._id}`, {
         data: { userId: user._id },
       });
-      alert(res.data.message || "Deleted successfully");
+
+      toast.success(res.data.message || "Deleted successfully");  // ✅ alert replaced
       fetchMaterials();
     } catch (err) {
       console.error("Delete error:", err);
-      alert(err.response?.data?.message || "Failed to delete file.");
+      toast.error(err.response?.data?.message || "Failed to delete file."); // ✅ alert replaced
     }
   };
 
