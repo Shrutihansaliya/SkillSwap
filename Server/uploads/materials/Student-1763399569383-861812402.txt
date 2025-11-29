@@ -1,0 +1,27 @@
+        
+//
+//  Student.swift
+//  SearchListSwiftUI
+//
+//  Created by BMIIT on 05/11/25.
+//
+
+import Foundation
+import UIKit
+import SwiftUI
+struct Student: Identifiable {
+    let id = UUID()
+    var name: String
+    var age: Int
+    var city: String
+    var image: String
+    var color: Color
+    
+    init(name: String, age: Int, city: String, image: String ,color: Color) {
+        self.name = name
+        self.age = age
+        self.city = city
+        self.image = image
+        self.color = color
+    }
+}

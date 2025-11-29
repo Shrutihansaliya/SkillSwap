@@ -1,0 +1,41 @@
+/* Make the whole page take full height */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Wrapper around your content */
+.page-container {
+  min-height: 100vh;      /* full viewport height */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Main content should grow */
+.main-content {
+  flex: 1;
+}
+
+/* Footer stays at bottom */
+.footer {
+  padding: 20px;
+  text-align: center;
+  background: #1e293b;
+  color: white;
+}
+
+.social-icons {
+  margin-top: 10px;
+}
+
+.social-icons a {
+  margin: 0 8px;
+  font-size: 1.2rem;
+  color: #fff;
+  transition: 0.3s;
+}
+
+.social-icons a:hover {
+  color: #38bdf8;
+}
