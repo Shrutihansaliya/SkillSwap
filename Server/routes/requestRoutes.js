@@ -10,7 +10,11 @@ import {
   getSenderSkills,
   acceptRequest,
   confirmSwap,
+ getAllCategoriesWithSkills, 
 } from "../controllers/requestController.js";
+
+
+
 
 const router = express.Router();
 
@@ -23,5 +27,6 @@ router.put("/status/:id", updateRequestStatus);
 router.get("/sender-skills/:senderId", getSenderSkills);
 router.put("/accept/:id", acceptRequest);
 router.post("/swap/confirm/:requestId", confirmSwap);
+router.get("/categories", getAllCategoriesWithSkills);
 
 export default router;

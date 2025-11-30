@@ -3,6 +3,8 @@ import UserSkill from "../models/UserSkill.js";
 import Skill from "../models/Skill.js";
 import bcrypt from "bcryptjs";
 import SkillCategory from "../models/SkillCategory.js";
+import SkillSwap from "../models/SkillSwap.js";
+import Request from "../models/Request.js";
 // Get all members with their skills
 // export const getMembers = async (req, res) => {
 //   try {
@@ -46,7 +48,7 @@ export const getMembers = async (req, res) => {
     // 1️⃣ Build base user filter (role = member)
     let userFilter = { Role: "member" };
 
-    // 2️⃣ TEXT SEARCH ON USERNAME / EMAIL / CITY
+    // 2️⃣ TEXT SEARCH ON USERNAME / EMAIL / CITY / CONTACT
     if (search && search.trim() !== "") {
       const q = new RegExp(search.trim(), "i"); // case-insensitive
       userFilter.$or = [
@@ -114,12 +116,35 @@ export const getMembers = async (req, res) => {
       );
     }
 
+    // 6️⃣ ADD SWAP COUNTS — Active & Completed
+    for (const m of filteredMembers) {
+      // Find all swap requests where this user is Sender or Receiver
+      const requests = await Request.find({
+        $or: [{ SenderId: m._id }, { ReceiverId: m._id }],
+      }).select("_id");
+
+      const requestIds = requests.map(r => r._id);
+
+      // Count Active Swaps
+      m.ActiveSwaps = await SkillSwap.countDocuments({
+        RequestId: { $in: requestIds },
+        Status: "Active",
+      });
+
+      // Count Completed Swaps
+      m.CompletedSwaps = await SkillSwap.countDocuments({
+        RequestId: { $in: requestIds },
+        Status: "Completed",
+      });
+    }
+
     res.json({ success: true, data: filteredMembers });
   } catch (err) {
     console.error("Get members error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 
 // Change password
 export const changePassword = async (req, res) => {

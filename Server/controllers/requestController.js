@@ -7,6 +7,7 @@ import User from "../models/User.js";
 import SkillSwap from "../models/SkillSwap.js";
 import Subscription from "../models/Subscription.js";
 import Notification from "../models/Notification.js";
+import Category from "../models/SkillCategory.js";
 
 // ✅ SEND REQUEST
 export const sendRequest = async (req, res) => {
@@ -335,8 +336,53 @@ export const confirmSwap = async (req, res) => {
 
 // ✅ GET ALL MEMBERS WITH AVAILABLE SKILLS
 //    (🔴 Suspended / inactive users are filtered out)
+// export const getAllMembersWithSkills = async (req, res) => {
+//   try {
+//     const users = await User.find({
+//       Role: { $ne: "Admin" },
+//       $or: [
+//         { isSuspended: { $ne: true } },
+//         { isSuspended: { $exists: false } },
+//       ],
+//       Status: { $ne: "Inactive" },
+//     })
+//      .populate("City", "cityName")   // ✅ FIX: Populate ONLY cityName
+//      .lean();
+
+//     const membersWithSkills = await Promise.all(
+//       users.map(async (u) => {
+//         const [userSkills, subscription] = await Promise.all([
+//           UserSkill.find({
+//             UserId: u._id,
+//             SkillAvailability: "Available",
+//           }).lean(),
+//           Subscription.findOne({ UserId: u._id }).lean(),
+//         ]);
+
+//         const skillsWithNames = await Promise.all(
+//           userSkills.map(async (us) => {
+//             const skill = await Skill.findOne({ SkillId: us.SkillId }).lean();
+//             return { ...us, Skill: skill };
+//           })
+//         );
+
+//         return {
+//           ...u,
+//           Skills: skillsWithNames,
+//           SwapsRemaining: subscription?.SwapsRemaining ?? 0,
+//         };
+//       })
+//     );
+
+//     res.json({ success: true, members: membersWithSkills });
+//   } catch (err) {
+//     console.error("Error fetching users with skills:", err);
+//     res.status(500).json({ success: false, message: "Server error" });
+//   }
+// };
 export const getAllMembersWithSkills = async (req, res) => {
   try {
+    // 1️⃣ Fetch all users (except admin)
     const users = await User.find({
       Role: { $ne: "Admin" },
       $or: [
@@ -344,39 +390,107 @@ export const getAllMembersWithSkills = async (req, res) => {
         { isSuspended: { $exists: false } },
       ],
       Status: { $ne: "Inactive" },
+    })
+      .populate("City", "cityName")         // ⭐ Populate cityName
+      .lean();
+
+    const userIds = users.map((u) => u._id);
+
+    // 2️⃣ Fetch all user-skills for these users
+    const allUserSkills = await UserSkill.find({
+      UserId: { $in: userIds },
+      SkillAvailability: "Available",
     }).lean();
 
-    const membersWithSkills = await Promise.all(
-      users.map(async (u) => {
-        const [userSkills, subscription] = await Promise.all([
-          UserSkill.find({
-            UserId: u._id,
-            SkillAvailability: "Available",
-          }).lean(),
-          Subscription.findOne({ UserId: u._id }).lean(),
-        ]);
+    const skillIds = allUserSkills.map((s) => s.SkillId);
 
-        const skillsWithNames = await Promise.all(
-          userSkills.map(async (us) => {
-            const skill = await Skill.findOne({ SkillId: us.SkillId }).lean();
-            return { ...us, Skill: skill };
-          })
-        );
+    // 3️⃣ Fetch skills only once
+    const allSkills = await Skill.find({ SkillId: { $in: skillIds } }).lean();
+
+    // Map SkillId → Skill Object
+    const skillMap = {};
+    allSkills.forEach((s) => {
+      skillMap[s.SkillId] = s;
+    });
+
+    // 4️⃣ Fetch subscriptions only once
+    const subscriptions = await Subscription.find({
+      UserId: { $in: userIds },
+    }).lean();
+
+    const subMap = {};
+    subscriptions.forEach((s) => {
+      subMap[s.UserId] = s;
+    });
+
+    // 5️⃣ Merge everything
+    const finalMembers = users.map((user) => {
+      const skills = allUserSkills
+        .filter((s) => String(s.UserId) === String(user._id))
+        .map((s) => ({
+          ...s,
+          Skill: skillMap[s.SkillId] || null, // attach full skill
+        }));
+
+      return {
+        ...user,
+        Skills: skills,
+        SwapsRemaining: subMap[user._id]?.SwapsRemaining ?? 0,
+      };
+    });
+
+    res.json({ success: true, members: finalMembers });
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ✅ GET ALL CATEGORIES
+
+
+// ===============================
+// GET ALL CATEGORIES + THEIR SKILLS
+// ===============================
+
+
+export const getAllCategoriesWithSkills = async (req, res) => {
+  try {
+    // 1️⃣ Get all categories
+    const categories = await Category.find({ status: "Active" })
+      .sort({ CategoryName: 1 })
+      .lean();
+
+    // 2️⃣ For each category, load its skills
+    const finalData = await Promise.all(
+      categories.map(async (cat) => {
+        const skills = await Skill.find({
+          CategoryId: cat.CategoryId,
+          Status: "Active",
+        })
+          .sort({ Name: 1 })
+          .lean();
 
         return {
-          ...u,
-          Skills: skillsWithNames,
-          SwapsRemaining: subscription?.SwapsRemaining ?? 0,
+          ...cat,
+          Skills: skills, // Add skills under this category
         };
       })
     );
 
-    res.json({ success: true, members: membersWithSkills });
+    return res.json({
+      success: true,
+      categories: finalData,
+    });
   } catch (err) {
-    console.error("Error fetching users with skills:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("Error fetching categories with skills:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching categories & skills",
+    });
   }
 };
+
 
 // ✅ SENT REQUESTS
 export const getSentRequests = async (req, res) => {

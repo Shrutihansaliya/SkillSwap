@@ -259,6 +259,11 @@ export default function Members() {
                         📍 {m.City?.cityName || m.City?.CityName || 'No location'}
                       </p>
                     </div>
+                    {/* Swap Stats */}
+<div className="mt-3 bg-gray-50 rounded-lg p-2 border border-gray-200 text-xs text-gray-700">
+  <p>🔄 Active Swaps: <span className="font-semibold">{m.ActiveSwaps || 0}</span></p>
+  <p>🏁 Completed Swaps: <span className="font-semibold">{m.CompletedSwaps || 0}</span></p>
+</div>
 
                     {/* Skills Tags */}
                     <div className="mt-3 flex flex-wrap gap-1">
@@ -324,7 +329,9 @@ export default function Members() {
                       <p className="text-blue-200 text-sm flex items-center gap-1 mt-1">
                         📍 {popup.City?.cityName || popup.City?.CityName || 'No location'}
                       </p>
+                      
                     </div>
+                    
                   </div>
 
                   <button

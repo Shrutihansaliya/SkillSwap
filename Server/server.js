@@ -38,7 +38,7 @@ import overviewRoutes from "./routes/overviewRoutes.js";
 import verifyCertificateRoutes from "./routes/verifyCertificateRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
-
+import adminSwapRoutes from "./routes/adminSwapRoutes.js";
 // 🔹 NEW: Call routes (video call history)
 import callRoutes from "./routes/callRoutes.js";
 
@@ -103,6 +103,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/categories", skillCategoryRoutes);
 app.use("/api/skills", skillRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin/swaps", adminSwapRoutes);
 app.use("/api/city", cityRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/requests", requestRoutes);

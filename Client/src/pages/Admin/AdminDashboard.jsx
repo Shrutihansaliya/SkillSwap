@@ -14,7 +14,7 @@ import SubscriptionPlans from "./SubscriptionPlans.jsx";
 import AddCity from "./AddCity.jsx";
 import AdminReports from "./AdminReports.jsx";
 import AdminPaymentView from "./AdminPaymentView.jsx";
-
+import AdminSwapManagement  from "./AdminSwapManagement.jsx"
 const DashboardContent = () => {
   const { activePage, setActivePage, user, loading, handleLogout } = useAdmin();
   const [totalRevenue, setTotalRevenue] = useState(0);
@@ -255,6 +255,8 @@ const DashboardContent = () => {
             <NavTab page="subscriptionPlans" label="Subscription Plans" />
             <NavTab page="adminpaymentview" label="Payments" />
             <NavTab page="reports" label="Reports" />
+            <NavTab page="adminSwaps" label="Swap Management" />
+
           </div>
         </div>
       </header>
@@ -279,6 +281,8 @@ const DashboardContent = () => {
           {activePage === "changePassword" && <ChangePassword />}
           {activePage === "addCity" && <AddCity />}
           {activePage === "adminpaymentview" && <AdminPaymentView />}
+          {activePage === "adminSwaps" && <AdminSwapManagement />}
+
         </div>
       </main>
     </div>
