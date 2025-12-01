@@ -47,21 +47,28 @@ const upload = multer({
 // ======================
 
 
-
-// Ensure upload folders exist
 const baseUploads = path.join(__dirname, "..", "uploads");
 const certFolder = path.join(baseUploads, "certificates");
 const contentFolder = path.join(baseUploads, "contentfiles");
+const templateImagesFolder = path.join(baseUploads, "template_images");
+
 if (!fsExistsSync(baseUploads)) fsMkdirSync(baseUploads);
 if (!fsExistsSync(certFolder)) fsMkdirSync(certFolder);
 if (!fsExistsSync(contentFolder)) fsMkdirSync(contentFolder);
+if (!fsExistsSync(templateImagesFolder)) fsMkdirSync(templateImagesFolder);
+
 
 // Multer storage to route files to appropriate folders
 const mixedStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    if (file.fieldname === "certificates") cb(null, path.join(__dirname, "../uploads/certificates"));
-    else if (file.fieldname === "TemplateImages") cb(null, path.join(__dirname, "../uploads/contentfiles")); // store images temporary here
-    else cb(null, path.join(__dirname, "../uploads"));
+    if (file.fieldname === "certificates") {
+  cb(null, path.join(__dirname, "../uploads/certificates"));
+} else if (file.fieldname === "TemplateImages") {
+  cb(null, path.join(__dirname, "../uploads/template_images"));
+} else {
+  cb(null, path.join(__dirname, "../uploads"));
+}
+
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + "_" + file.originalname.replace(/\s+/g, "_"));
@@ -109,7 +116,7 @@ router.post(
   "/user-skills",
   uploadMixed.fields([
     { name: "certificates", maxCount: 5 },
-    { name: "contentFiles", maxCount: 5 },
+    { name: "TemplateImages", maxCount: 5 },
   ]),
   addUserSkills
 );

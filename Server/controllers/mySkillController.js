@@ -121,46 +121,85 @@ export const getPdfContent = async (req, res) => {
 /* ----------------------------------------------------------
    UPDATE SKILL
 ----------------------------------------------------------- */
-
-
 export const updateUserSkill = async (req, res) => {
   try {
+    console.log("updateUserSkill called:", {
+      params: req.params,
+      bodyKeys: Object.keys(req.body || {}),
+      filesKeys: req.files ? Object.keys(req.files) : null,
+    });
+
     const { skillId } = req.params;
-    const { Source, EditedText } = req.body;
+    const { Source, EditedText, SkillId: incomingSkillId, UserId: incomingUserId } = req.body;
 
     const skill = await UserSkill.findById(skillId);
     if (!skill) return res.status(404).json({ success: false, message: "Skill not found" });
 
-    if (Source !== undefined) skill.Source = Source;
+    // Update simple fields
+    if (Source !== undefined) skill.Source = Source === "" ? null : Source;
 
-    // --- Certificate Update ---
+    // If frontend sent a new SkillId (user changed selected skill), update it
+    if (incomingSkillId !== undefined && incomingSkillId !== "") {
+      // try numeric then fallback
+      const parsed = Number(incomingSkillId);
+      skill.SkillId = Number.isFinite(parsed) ? parsed : incomingSkillId;
+      console.log(" - updating SkillId to:", skill.SkillId);
+    }
+
+    // --- Certificate Update (single file) ---
     if (req.files?.Certificate?.[0]) {
-      skill.CertificateURL = `/uploads/certificates/${req.files.Certificate[0].filename}`;
+      // delete old certificate if exists (best-effort)
+      try {
+        if (skill.CertificateURL) {
+          const oldCertRel = skill.CertificateURL.replace(/^\//, "");
+          const oldCertPath = path.join(process.cwd(), oldCertRel);
+          if (fs.existsSync(oldCertPath)) fs.unlinkSync(oldCertPath);
+        }
+      } catch (e) { console.warn("Could not remove old certificate:", e.message); }
+
+      const certFile = req.files.Certificate[0];
+      skill.CertificateURL = `/uploads/certificates/${certFile.filename}`;
       skill.CertificateStatus = "Pending";
     }
 
-    // --- PDF Content Editing ---
-    if (EditedText && EditedText.trim()) {
-      // Delete old PDF
-      if (skill.ContentFileURL) {
-        const rel = skill.ContentFileURL.replace(/^\//, "");
-        const oldPath = path.join(process.cwd(), rel);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
+    // --- ContentFile Update (replace if a file uploaded) ---
+    if (req.files?.ContentFile?.[0]) {
+      // delete old content pdf if exists
+      try {
+        if (skill.ContentFileURL) {
+          const oldRel = skill.ContentFileURL.replace(/^\//, "");
+          const oldPath = path.join(process.cwd(), oldRel);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+      } catch (e) { console.warn("Could not remove old content file:", e.message); }
 
-      // Detect template on save
+      const contentFile = req.files.ContentFile[0];
+      skill.ContentFileURL = `/uploads/contentfiles/${contentFile.filename}`;
+      // Optionally set a status field if you have one
+    }
+
+    // --- EditedText: regenerate PDF if provided (textarea edits) ---
+    if (EditedText && String(EditedText).trim()) {
+      const text = String(EditedText);
+      // determine template type heuristics
       let templateType = "main";
-      const text = EditedText;
-
       if (text.includes("-") && text.includes(",")) templateType = "sub";
       if (text.includes("✓")) templateType = "main";
       if (!text.includes(",") && !text.includes("-")) templateType = "plain";
 
-      // Fetch skill/category names
+      // fetch skill/category names for PDF header
       const skillDoc = await Skill.findOne({ SkillId: skill.SkillId });
-      const categoryDoc = await Category.findOne({ CategoryId: skillDoc.CategoryId });
+      const categoryDoc = skillDoc ? await Category.findOne({ CategoryId: skillDoc.CategoryId }) : null;
 
-      // Generate new PDF
+      // delete old content file (already done above if ContentFile uploaded). do again safe-guard:
+      try {
+        if (skill.ContentFileURL) {
+          const oldRel = skill.ContentFileURL.replace(/^\//, "");
+          const oldPath = path.join(process.cwd(), oldRel);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+      } catch (e) { /* ignore */ }
+
       const fileName = `content_${skill.UserId}_${Date.now()}.pdf`;
       const outputPdfPath = path.join("uploads", "contentfiles", fileName);
 
@@ -174,19 +213,18 @@ export const updateUserSkill = async (req, res) => {
         templateImagePath: null,
       });
 
-      skill.ContentFileURL = "/uploads/contentfiles/" + fileName;
+      skill.ContentFileURL = `/uploads/contentfiles/${fileName}`;
     }
 
     await skill.save();
-    res.json({ success: true, message: "Skill updated", data: skill });
 
+    console.log("updateUserSkill finished for:", skillId);
+    res.json({ success: true, message: "Skill updated", data: skill });
   } catch (err) {
     console.error("UpdateSkill Error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-
 
 
 /* -----------------------------------------------------------
