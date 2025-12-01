@@ -580,6 +580,9 @@ export const getUserProfile = async (req, res) => {
 // ======================
 // UPDATE USER PROFILE WITH VALIDATION (same as register)
 // ======================
+// ======================
+// UPDATE USER PROFILE (delete old profile image when new uploaded)
+// ======================
 export const updateUserProfile = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -592,28 +595,28 @@ export const updateUserProfile = async (req, res) => {
       City: cityId,
       ContactNo,
       Bio,
-       Gender,
+      Gender,
     } = req.body;
 
-    // ✅ 1️⃣ Check if user exists
+    // 1. Check if user exists
     const user = await User.findById(userId);
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    // ✅ 2️⃣ Validate Username
+    // 2. Validate Username
     if (!/^[a-zA-Z0-9_]+$/.test(Username) || Username.length < 3)
       return res
         .status(400)
         .json({ success: false, message: "Invalid username format" });
 
-    // ✅ 3️⃣ Validate Email (unique except current user)
+    // 3. Validate Email (unique except current user)
     const existingEmail = await User.findOne({ Email });
     if (existingEmail && existingEmail._id.toString() !== userId)
       return res
         .status(400)
         .json({ success: false, message: "Email already in use" });
 
-    // ✅ 4️⃣ Validate Contact No (unique except current user)
+    // 4. Validate Contact No
     if (!/^\d{10}$/.test(ContactNo))
       return res
         .status(400)
@@ -625,7 +628,7 @@ export const updateUserProfile = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Contact number already in use" });
 
-    // ✅ 5️⃣ Validate Date of Birth (minimum 21 years old)
+    // 5. DOB check (min 21)
     const today = new Date();
     const minDOB = new Date(today.setFullYear(today.getFullYear() - 21));
     if (new Date(DateOfBirth) > minDOB)
@@ -633,14 +636,14 @@ export const updateUserProfile = async (req, res) => {
         .status(400)
         .json({ success: false, message: "User must be at least 21 years old" });
 
-    // ✅ 6️⃣ Validate City
+    // 6. City validate
     const city = await City.findById(cityId);
     if (!city)
       return res
         .status(400)
         .json({ success: false, message: "Invalid city selected" });
 
-    // ✅ 7️⃣ Validate StreetNo and Area
+    // 7. StreetNo and Area validation
     if (!/^[a-zA-Z0-9\s,]+$/.test(StreetNo))
       return res.status(400).json({
         success: false,
@@ -652,7 +655,7 @@ export const updateUserProfile = async (req, res) => {
         message: "Area can only contain letters, numbers, commas, and spaces",
       });
 
-    // ✅ 8️⃣ Update fields
+    // 8. Update fields
     user.Username = Username;
     user.Email = Email;
     user.DateOfBirth = DateOfBirth;
@@ -661,10 +664,31 @@ export const updateUserProfile = async (req, res) => {
     user.City = city._id;
     user.ContactNo = ContactNo;
     user.Bio = Bio || null;
-        user.Gender = Gender; 
+    user.Gender = Gender;
 
-    // ✅ 9️⃣ Update profile image (optional)
+    // 9. Update profile image (optional) - delete old file if present and not default
     if (req.file) {
+      try {
+        if (user.ProfileImageURL) {
+          // Extract filename safely
+          const oldFilename = path.basename(user.ProfileImageURL);
+          // Prevent deleting a shared default avatar file (adjust name if you use different default)
+          const defaultNames = ["default-avatar.png", "avatar.png", "default.png"];
+          if (!defaultNames.includes(oldFilename)) {
+            const oldFilePath = path.join(process.cwd(), "uploads", oldFilename);
+            // check exists then unlink
+            await fs.promises.access(oldFilePath, fs.constants.F_OK)
+              .then(() => fs.promises.unlink(oldFilePath))
+              .catch((err) => {
+                // log and continue — don't fail whole update
+                console.warn("Could not delete old profile image:", err.message);
+              });
+          }
+        }
+      } catch (deleteErr) {
+        console.warn("Error while deleting old profile image:", deleteErr);
+      }
+
       user.ProfileImageURL = `/uploads/${req.file.filename}`;
     }
 
