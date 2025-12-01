@@ -6,10 +6,14 @@ import Subscription from "../models/Subscription.js";
 import crypto from "crypto";
 import transporter from "../config/nodemailer.js";
 import User from "../models/User.js";
+// controllers/paymentController.js
 
-/* ---------------------------------------------------------
-   CREATE ORDER (FIXED AMOUNT FOR DECIMAL128)
---------------------------------------------------------- */
+
+/*
+---------------------------------------------------------
+ CREATE RAZORPAY ORDER
+---------------------------------------------------------
+*/
 export const createOrder = async (req, res) => {
   try {
     const { userId, planId } = req.body;
@@ -18,42 +22,41 @@ export const createOrder = async (req, res) => {
     if (!plan)
       return res.status(404).json({ success: false, message: "Plan not found" });
 
-    const amountRupees = parseFloat(plan.Price.toString());
-    const amountPaise = Math.round(amountRupees * 100);
+    const amount = parseFloat(plan.Price.toString());
+    const amountPaise = Math.round(amount * 100);
 
     const order = await razorpay.orders.create({
       amount: amountPaise,
       currency: "INR",
-      receipt: "receipt_" + Date.now(),
+      receipt: "order_" + Date.now(),
     });
 
     await Payment.create({
       userId,
       planId,
-      amount: amountRupees,
+      amount,
       currency: "INR",
       razorpay_order_id: order.id,
       status: "Created",
     });
 
-    return res.json({
+    res.json({
       success: true,
       key: process.env.RAZORPAY_KEY_ID,
       orderId: order.id,
-      amount: amountRupees,
-      planName: plan.Name,
+      amount,
     });
   } catch (err) {
     console.log("Order Error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Order creation failed" });
+    res.status(500).json({ success: false, message: "Order creation failed" });
   }
 };
 
-/* ---------------------------------------------------------
-   VERIFY PAYMENT
---------------------------------------------------------- */
+/*
+---------------------------------------------------------
+ VERIFY PAYMENT & ACTIVATE PLAN
+---------------------------------------------------------
+*/
 export const verifyPayment = async (req, res) => {
   try {
     const {
@@ -64,122 +67,161 @@ export const verifyPayment = async (req, res) => {
       planId,
     } = req.body;
 
-    const sign = `${razorpay_order_id}|${razorpay_payment_id}`;
+    // Validate signature
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_SECRET)
-      .update(sign)
+      .update(body)
       .digest("hex");
 
     if (expectedSignature !== razorpay_signature) {
       return res.status(400).json({
         success: false,
-        message: "Invalid Signature – Payment Failed",
+        message: "Invalid signature",
       });
     }
 
-    const payment = await Payment.findOneAndUpdate(
+    // Update payment record
+    await Payment.findOneAndUpdate(
       { razorpay_order_id },
-      {
-        razorpay_payment_id,
-        razorpay_signature,
-        status: "Paid",
-      },
-      { new: true }
+      { razorpay_payment_id, razorpay_signature, status: "Paid" }
     );
 
-    if (!payment) {
-      return res.status(400).json({
-        success: false,
-        message: "Payment record not found",
+    const plan = await SubscriptionPlan.findById(planId);
+    const user = await User.findById(userId);
+
+    // Fetch user's all subscriptions
+    const subs = await Subscription.find({ UserId: userId });
+
+    const activeSub = subs.find((s) => s.Status === "Active");
+    const expiredSub = subs.find((s) => s.Status === "Expired");
+    const upcomingSub = subs.find((s) => s.Status === "Upcoming");
+
+    // -------------------------------------------------------------------
+    // 1) USER HAS ACTIVE PLAN → Handle Free User, Zero-Swap, Normal Case
+    // -------------------------------------------------------------------
+    if (activeSub) {
+      // ⭐ If Active is Free Plan → Expire & Activate Paid Plan Immediately
+      if (activeSub.IsFreePlan === true) {
+        activeSub.Status = "Expired";
+        await activeSub.save();
+
+        const newActive = new Subscription({
+          UserId: userId,
+          PlanId: planId,
+          SwapsRemaining: plan.SwapLimit,
+          IsFreePlan: false,
+          Status: "Active",
+          PaymentStatus: "Success",
+          StartDate: new Date(),
+        });
+
+        await newActive.save();
+
+        return res.json({
+          success: true,
+          message: "Payment verified — Free plan expired and new plan activated",
+        });
+      }
+
+      // ⭐ If Active Plan has ZERO swaps → Expire it & Promote Upcoming
+      if (Number(activeSub.SwapsRemaining) === 0) {
+        activeSub.Status = "Expired";
+        await activeSub.save();
+
+        // Promote upcoming → Active
+        if (upcomingSub) {
+          upcomingSub.Status = "Active";
+          upcomingSub.StartDate = new Date();
+          await upcomingSub.save();
+        }
+      }
+
+      // ⭐ Normal Case: Active exists → New becomes UPCOMING
+      const newUpcoming = new Subscription({
+        UserId: userId,
+        PlanId: planId,
+        SwapsRemaining: plan.SwapLimit,
+        IsFreePlan: false,
+        Status: "Upcoming",
+        PaymentStatus: "Success",
+        StartDate: new Date(),
+      });
+
+      await newUpcoming.save();
+
+      return res.json({
+        success: true,
+        message: "Payment verified — New plan added as Upcoming",
       });
     }
 
-    const user = await User.findById(userId);
-    const plan = await SubscriptionPlan.findById(planId);
+    // -------------------------------------------------------------------
+    // 2) ONLY EXPIRED PLAN EXISTS → REMOVE IT & ACTIVATE NEW PLAN
+    // -------------------------------------------------------------------
+    if (expiredSub) {
+      await Subscription.deleteOne({ _id: expiredSub._id });
 
-    let subscription = await Subscription.findOne({ UserId: userId });
-
-    const previousSwaps = subscription?.SwapsRemaining || 0;
-    const newSwaps = plan.SwapLimit;
-    const updatedSwaps = previousSwaps + newSwaps;
-
-    subscription = await Subscription.findOneAndUpdate(
-      { UserId: userId },
-      {
+      const newActive = new Subscription({
+        UserId: userId,
         PlanId: planId,
-        SwapsRemaining: updatedSwaps,
+        SwapsRemaining: plan.SwapLimit,
+        IsFreePlan: false,
+        Status: "Active",
         PaymentStatus: "Success",
-        RazorpayOrderId: razorpay_order_id,
-        RazorpayPaymentId: razorpay_payment_id,
-        RazorpaySignature: razorpay_signature,
         StartDate: new Date(),
-      },
-      { new: true, upsert: true }
-    );
+      });
 
-    const emailHTML = `
-  <div style="max-width: 600px; margin: auto; background: #ffffff; border-radius: 12px; padding: 25px; font-family: Arial, sans-serif; border: 1px solid #e6e6e6;">
-    <div style="text-align: center; padding-bottom: 10px;">
-      <img src="https://cdn-icons-png.flaticon.com/512/190/190411.png" width="80" />
-      <h2 style="color: #2d89ff; margin-top: 10px;">Payment Successful 🎉</h2>
-    </div>
+      await newActive.save();
 
-    <p style="font-size: 16px; color: #444;">
-      Hello <strong>${user.Username}</strong>,  
-      <br><br>
-      Thank you for upgrading your <strong>SkillSwap Plan</strong>. Your payment has been successfully processed.
-    </p>
+      return res.json({
+        success: true,
+        message: "Payment verified — New plan activated",
+      });
+    }
 
-    <div style="background: #f3f8ff; padding: 15px; border-radius: 10px; margin-top: 20px; border-left: 5px solid #2d89ff;">
-      <h3 style="color: #2d89ff; margin: 0 0 10px 0;">📦 Plan Details</h3>
-      <p style="margin: 5px 0;"><strong>Plan:</strong> ${plan.Name}</p>
-      <p style="margin: 5px 0;"><strong>Swaps Added:</strong> ${newSwaps}</p>
-      <p style="margin: 5px 0;"><strong>Total Swaps Now:</strong> ${updatedSwaps}</p>
-    </div>
+    // -------------------------------------------------------------------
+    // 3) NO PLAN EXISTS → CREATE ACTIVE PLAN
+    // -------------------------------------------------------------------
+    const newActive = new Subscription({
+      UserId: userId,
+      PlanId: planId,
+      SwapsRemaining: plan.SwapLimit,
+      IsFreePlan: false,
+      Status: "Active",
+      PaymentStatus: "Success",
+      StartDate: new Date(),
+    });
 
-    <div style="background: #fff6e5; padding: 15px; border-radius: 10px; margin-top: 20px; border-left: 5px solid #ffb020;">
-      <h3 style="color: #ff9800; margin: 0 0 10px 0;">💳 Payment Details</h3>
-      <p style="margin: 5px 0;"><strong>Amount Paid:</strong> ₹${payment.amount}</p>
-      <p style="margin: 5px 0;"><strong>Order ID:</strong> ${razorpay_order_id}</p>
-      <p style="margin: 5px 0;"><strong>Payment ID:</strong> ${razorpay_payment_id}</p>
-    </div>
+    await newActive.save();
 
-    <p style="margin-top: 25px; font-size: 14px; color: #666; text-align: center;">
-      Need help? Contact us anytime: 
-      <a href="mailto:${process.env.SENDER_EMAIL}" style="color: #2d89ff; text-decoration: none;">
-        ${process.env.SENDER_EMAIL}
-      </a>
-    </p>
-
-    <hr style="border: none; height: 1px; background: #eee; margin: 20px 0;" />
-
-    <p style="text-align: center; font-size: 13px; color: #888;">
-      © ${new Date().getFullYear()} SkillSwap. All rights reserved.
-    </p>
-  </div>
-`;
-
+    // Send email
     await transporter.sendMail({
-      from: `"SkillSwap" <${process.env.SENDER_EMAIL}>`,
+      from: `SkillSwap <${process.env.SENDER_EMAIL}>`,
       to: user.Email,
-      subject: "🎉 Payment Successful – SkillSwap Premium Activated!",
-      html: emailHTML,
+      subject: "Payment Successful",
+      html: `<h3>Your subscription has been activated!</h3>`,
     });
 
     return res.json({
       success: true,
-      message: "Subscription Activated & Email Sent!",
+      message: "Payment verified — Active plan created",
     });
-  } catch (error) {
-    console.log("Verify Error:", error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Payment verification failed" });
+
+  } catch (err) {
+    console.log("Verify Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Payment verification failed",
+    });
   }
 };
 
+
+
+
 /* ---------------------------------------------------------
-   GET TOTAL REVENUE
+   ADMIN — TOTAL REVENUE
 --------------------------------------------------------- */
 export const getTotalRevenue = async (req, res) => {
   try {
@@ -196,20 +238,12 @@ export const getTotalRevenue = async (req, res) => {
 
     const data = result[0] || { countPaid: 0, totalSum: 0 };
 
-    const total =
-      typeof data.totalSum === "number"
-        ? Math.round(data.totalSum)
-        : Math.round(parseFloat(data.totalSum?.toString() || "0"));
-
-    console.log("💰 Revenue aggregate:", data, " -> total:", total);
-
     return res.json({
       success: true,
-      total,
-      countPaid: data.countPaid || 0,
+      total: Math.round(data.totalSum),
+      countPaid: data.countPaid,
     });
   } catch (err) {
-    console.error("Revenue Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch revenue",
@@ -217,9 +251,8 @@ export const getTotalRevenue = async (req, res) => {
   }
 };
 
-
 /* ---------------------------------------------------------
-   ADMIN – GET ALL PAYMENTS WITH USER & PLAN
+   ADMIN — ALL PAYMENTS
 --------------------------------------------------------- */
 export const getAllPayments = async (req, res) => {
   try {
@@ -233,7 +266,6 @@ export const getAllPayments = async (req, res) => {
       payments,
     });
   } catch (err) {
-    console.error("Admin Payments Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch payments",

@@ -1,93 +1,194 @@
+// controllers/purchaseSubscriptionController.js
 import Subscription from "../models/Subscription.js";
 import SubscriptionPlan from "../models/SubscriptionPlan.js";
 
-// Purchase or update a user subscription
+/*
+  PURCHASE SUBSCRIPTION (NO PAYMENT route)
+*/
 export const purchaseSubscription = async (req, res) => {
   try {
-    const { UserId, PlanId } = req.body;
+    const { userId, planId } = req.body;
 
-    if (!UserId || !PlanId) {
+    if (!userId || !planId)
       return res.status(400).json({
         success: false,
-        message: "UserId and PlanId are required",
+        message: "userId and planId are required",
       });
-    }
 
-    const plan = await SubscriptionPlan.findById(PlanId);
-    if (!plan) {
+    const plan = await SubscriptionPlan.findById(planId);
+    if (!plan)
       return res.status(404).json({
         success: false,
-        message: "Plan not found",
+        message: "Invalid plan selected",
       });
-    }
 
-    let subscription = await Subscription.findOne({ UserId });
+    // Load all user subscriptions
+    const subs = await Subscription.find({ UserId: userId }).sort({
+      StartDate: 1,
+      createdAt: 1,
+    });
 
-    if (subscription) {
-      subscription.PlanId = plan._id;
-      subscription.SwapsRemaining = plan.SwapLimit;
-      subscription.StartDate = new Date();
-      await subscription.save();
+    const activeSub = subs.find((s) => s.Status === "Active");
+    const upcomingSub = subs.find((s) => s.Status === "Upcoming");
+    const expiredSub = subs.find((s) => s.Status === "Expired");
 
-      return res.status(200).json({
+    /*
+      ================================================================
+      CASE 1:
+      USER ALREADY HAS ACTIVE PLAN (free or paid)
+      → Keep current active as Active
+      → New plan = Upcoming
+      → DO NOT expire anything
+      ================================================================
+    */
+    if (activeSub) {
+      const newUpcoming = new Subscription({
+        UserId: userId,
+        PlanId: planId,
+        IsFreePlan: false,
+        SwapsRemaining: plan.SwapLimit,
+        Status: "Upcoming",
+        PaymentStatus: "Success",
+        StartDate: new Date(),
+      });
+
+      await newUpcoming.save();
+
+      return res.json({
         success: true,
-        message: "Subscription updated successfully!",
-        subscription,
+        message: "You already have an active plan. New plan added as Upcoming.",
       });
     }
 
-    subscription = new Subscription({
-      UserId,
-      PlanId: plan._id,
+    /*
+      ================================================================
+      CASE 2:
+      NO ACTIVE PLAN (meaning only expired plan exists)
+      → Remove expired plan
+      → New plan becomes ACTIVE
+      This will work with confirmSwap() auto-expire feature.
+      ================================================================
+    */
+    if (expiredSub) {
+      await Subscription.deleteOne({ _id: expiredSub._id });
+
+      const newActive = new Subscription({
+        UserId: userId,
+        PlanId: planId,
+        IsFreePlan: false,
+        SwapsRemaining: plan.SwapLimit,
+        Status: "Active",
+        PaymentStatus: "Success",
+        StartDate: new Date(),
+      });
+
+      await newActive.save();
+
+      return res.json({
+        success: true,
+        message: "Expired plan removed. New plan activated.",
+      });
+    }
+
+    /*
+      ================================================================
+      CASE 3:
+      USER HAS NO PLAN AT ALL (first time buyer)
+      → New plan becomes ACTIVE
+      ================================================================
+    */
+    const newActive = new Subscription({
+      UserId: userId,
+      PlanId: planId,
+      IsFreePlan: false,
       SwapsRemaining: plan.SwapLimit,
+      Status: "Active",
+      PaymentStatus: "Success",
       StartDate: new Date(),
     });
 
-    await subscription.save();
+    await newActive.save();
 
-    return res.status(201).json({
+    return res.json({
       success: true,
-      message: "Subscription purchased successfully!",
-      subscription,
+      message: "Plan activated successfully.",
     });
-  } catch (error) {
-    console.error("Error purchasing subscription:", error);
-    res.status(500).json({
+  } catch (err) {
+    console.error("Purchase Subscription Error:", err);
+    return res.status(500).json({
       success: false,
-      message: "Server error while purchasing subscription",
+      message: "Server error",
     });
   }
 };
+
+
+
 
 // Get a user's active subscription
+// export const getUserSubscription = async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+//     const subscription = await Subscription.findOne({ UserId: userId }).populate("PlanId");
+
+//     if (!subscription) {
+//       return res.status(200).json({
+//         success: false,
+//         message: "No active subscription found",
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       subscription: {
+//         UserId: subscription.UserId,
+//         PlanId: subscription.PlanId._id,
+//         PlanName: subscription.PlanId.Name,
+//         SwapLimit: subscription.PlanId.SwapLimit,
+//         SwapsRemaining: subscription.SwapsRemaining,
+//         StartDate: subscription.StartDate,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error fetching subscription:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Server error fetching subscription",
+//     });
+//   }
+// };
+// GET ALL SUBSCRIPTIONS OF USER
+
+
 export const getUserSubscription = async (req, res) => {
   try {
-    const { userId } = req.params;
-    const subscription = await Subscription.findOne({ UserId: userId }).populate("PlanId");
+    const userId = req.params.userId;
 
-    if (!subscription) {
-      return res.status(200).json({
-        success: false,
-        message: "No active subscription found",
-      });
-    }
+    const subs = await Subscription.find({ UserId: userId })
+      .populate("PlanId")
+      .sort({ StartDate: -1 });
 
-    return res.status(200).json({
+   const active = subs.find((s) => s.Status?.toLowerCase() === "active") || null;
+const upcoming = subs.find((s) => s.Status?.toLowerCase() === "upcoming") || null;
+
+
+    console.log("📌 All Subs:", subs);
+    console.log("📌 Active:", active);
+    console.log("📌 Upcoming:", upcoming);
+
+    return res.json({
       success: true,
-      subscription: {
-        UserId: subscription.UserId,
-        PlanId: subscription.PlanId._id,
-        PlanName: subscription.PlanId.Name,
-        SwapLimit: subscription.PlanId.SwapLimit,
-        SwapsRemaining: subscription.SwapsRemaining,
-        StartDate: subscription.StartDate,
-      },
+      activePlan: active,
+      upcomingPlan: upcoming,
+      allSubscriptions: subs,
     });
-  } catch (error) {
-    console.error("Error fetching subscription:", error);
-    res.status(500).json({
+  } catch (err) {
+    console.log("getUserSubscription error:", err);
+    return res.status(500).json({
       success: false,
-      message: "Server error fetching subscription",
+      message: "Failed to fetch user subscription",
     });
   }
 };
+
+

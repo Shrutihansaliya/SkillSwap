@@ -64,72 +64,84 @@
 // };
 
 // export default ConfirmSwap;
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 
-const API_BASE = "http://localhost:4000";
-
-const ConfirmSwap = ({ swap, user, onConfirmed }) => {
+function ConfirmSwap({ requestId, onClose }) {
   const [loading, setLoading] = useState(false);
+  const [swapInfo, setSwapInfo] = useState(null);
+
+  useEffect(() => {
+    fetchSwapInfo();
+  }, []);
+
+  const fetchSwapInfo = async () => {
+    try {
+      const res = await axios.get(
+        `http://localhost:4000/api/subscriptions/user/${localStorage.getItem("userId")}`
+      );
+
+      const subs = res.data.subscriptions || [];
+      const active = subs.find((s) => s.Status === "Active");
+
+      setSwapInfo({
+        activeSwaps: active?.SwapsRemaining ?? 0,
+        hasSwaps: active && active.SwapsRemaining > 0,
+      });
+    } catch (err) {
+      console.error("Error fetching swap info", err);
+    }
+  };
 
   const handleConfirm = async () => {
-    if (!swap || !user) return toast.error("Missing data.");
-    if (swap.Status === "Completed") return toast.info("This swap is already completed.");
+    if (!swapInfo?.hasSwaps) {
+      toast.error("You do not have enough swaps.");
+      return;
+    }
 
-    const senderId =
-      swap.Sender?._id ||
-      swap.Sender ||
-      swap.RequestId?.SenderId ||
-      "";
-
-    const currentUserId = user._id || user.UserId;
-    const myKey = senderId === currentUserId ? "SenderConfirmed" : "ReceiverConfirmed";
-
-    if (swap?.Confirmations?.[myKey])
-      return toast.warning("You already confirmed this swap.");
-
-    if (!window.confirm("Have you completed this swap?")) return;
-
+    setLoading(true);
     try {
-      setLoading(true);
-
-      const res = await axios.put(`${API_BASE}/api/swaps/${swap._id}/confirm`, {
-        userId: user._id,
-      });
+      const res = await axios.put(
+        `http://localhost:4000/api/swaps/confirm/${requestId}`
+      );
 
       if (res.data.success) {
-        toast.success("✔️ Swap confirmed!");
-        onConfirmed?.();
+        toast.success("Swap confirmed successfully");
+        onClose();
       } else {
         toast.error(res.data.message || "Failed to confirm swap");
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || "Error confirming swap");
+      toast.error(err.response?.data?.message || "Failed to confirm");
     } finally {
       setLoading(false);
     }
   };
 
-  const senderId =
-    swap?.Sender?._id || swap?.Sender || swap?.RequestId?.SenderId || "";
-  const currentUserId = user?._id || user?.UserId;
-  const myKey = senderId === currentUserId ? "SenderConfirmed" : "ReceiverConfirmed";
-  const confirmDisabled = swap?.Status === "Completed" || swap?.Confirmations?.[myKey];
-
   return (
-    <button
-      onClick={handleConfirm}
-      disabled={loading || confirmDisabled}
-      className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium shadow-md transition-all ${
-        loading || confirmDisabled
-          ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-          : "bg-gradient-to-r from-green-400 to-green-500 text-white"
-      }`}
-    >
-      {loading ? "Confirming..." : "✅ Confirm"}
-    </button>
+    <div className="p-5">
+      <h2 className="text-xl font-bold mb-4">Confirm Swap</h2>
+
+      {swapInfo && (
+        <p className="text-gray-700 mb-4">
+          Available Swaps: <strong>{swapInfo.activeSwaps}</strong>
+        </p>
+      )}
+
+      <button
+        onClick={handleConfirm}
+        disabled={loading || !swapInfo?.hasSwaps}
+        className={`px-5 py-2 rounded text-white ${
+          swapInfo?.hasSwaps
+            ? "bg-indigo-600 hover:bg-indigo-700"
+            : "bg-gray-400 cursor-not-allowed"
+        }`}
+      >
+        {loading ? "Processing..." : "Confirm Swap"}
+      </button>
+    </div>
   );
-};
+}
 
 export default ConfirmSwap;

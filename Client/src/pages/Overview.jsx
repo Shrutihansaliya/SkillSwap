@@ -13,9 +13,9 @@ import {
   FiCode,
   FiCalendar,
   FiCheck,
-  FiXCircle,
   FiArrowRight
 } from "react-icons/fi";
+
 
 function Overview({ userId }) {
   const [stats, setStats] = useState({
@@ -24,6 +24,9 @@ function Overview({ userId }) {
     activeSwaps: 0,
     completedSwaps: 0,
   });
+ // ⭐ Subscription State
+  const [activeSub, setActiveSub] = useState(null);
+  const [upcomingSub, setUpcomingSub] = useState(null);
 
   const [swapHistory, setSwapHistory] = useState([]);
   const [loadingSwaps, setLoadingSwaps] = useState(false);
@@ -35,6 +38,33 @@ function Overview({ userId }) {
   const [pageSize, setPageSize] = useState(6);
 
   const [loaded, setLoaded] = useState(false);
+// ⭐ Fetch Subscription
+ // ⭐ Fetch Subscription (FIXED URL)
+const loadSubscription = async () => {
+  if (!userId) return;
+
+  try {
+    const res = await axios.get(
+  `http://localhost:4000/api/purchase-subscription/${userId}`
+);
+
+
+    console.log("📌 API Subscription Response =", res.data);
+
+    setActiveSub(res.data.activePlan || null);
+    setUpcomingSub(res.data.upcomingPlan || null);
+
+  } catch (err) {
+    console.log("❌ Subscription load error:", err);
+  }
+};
+
+
+
+useEffect(() => {
+  console.log("🔥 useEffect LOAD SUBS CALLED FOR userId =", userId);
+  loadSubscription();
+}, [userId]);
 
   useEffect(() => {
     const loadStats = async () => {
@@ -159,6 +189,96 @@ function Overview({ userId }) {
 
   return (
     <div className="p-6">
+          {/* ⭐ SUBSCRIPTION SECTION */}
+         {/* ⭐ SUBSCRIPTION SECTION */}
+      <div className=" rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] rounded-md flex items-center justify-center">
+              <FiCheckCircle className="text-white w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-800">Subscription</h3>
+              <p className="text-xs text-gray-500">Plan details</p>
+            </div>
+          </div>
+          <button
+            onClick={() => (window.location.href = "/dashboard?tab=purchase")}
+            className="px-2.5 py-1 bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] text-white rounded-md text-xs font-medium hover:opacity-90 transition-opacity"
+          >
+            {activeSub ? "Manage" : "Get"}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Active Plan */}
+          <div className="bg-gradient-to-br from-[#F7F4EA]/80 to-white p-3 rounded-lg border border-[#A8BBA3]/30">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 bg-[#B87C4C] rounded-full flex items-center justify-center">
+                <FiCheckCircle className="text-white w-3 h-3" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-gray-800">
+                  {activeSub ? activeSub.PlanId?.Name?.split(' ')[0] || "Active" : "No Plan"}
+                </h4>
+                <p className="text-[10px] text-gray-500">Current</p>
+              </div>
+            </div>
+            
+            {activeSub && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500">Limit</span>
+                  <span className="text-xs font-bold text-[#B87C4C]">{activeSub.PlanId?.SwapLimit || "0"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500">Left</span>
+                  <span className="text-xs font-bold text-[#8E5C32]">{activeSub.SwapsRemaining || "0"}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          
+
+          {/* Upcoming Plan */}
+          <div className={`p-3 rounded-lg border ${upcomingSub ? 'border-[#B87C4C]/20 bg-gradient-to-br from-[#F7F4EA]/60 to-white' : 'border-[#A8BBA3]/30 bg-gradient-to-br from-white to-[#F7F4EA]/80'}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-6 h-6 ${upcomingSub ? 'bg-[#8E5C32]' : 'bg-gray-400'} rounded-full flex items-center justify-center`}>
+                <FiCalendar className="text-white w-3 h-3" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-gray-800">
+                  {upcomingSub ? "Next" : "None"}
+                </h4>
+                <p className="text-[10px] text-gray-500">Upcoming</p>
+              </div>
+            </div>
+            
+            {upcomingSub ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500">Plan</span>
+                  <span className="text-xs font-medium text-[#8E5C32] truncate ml-1">{upcomingSub.PlanId?.Name?.split(' ')[0]}</span>
+                </div>
+                <div className="pt-1">
+                  <span className="text-[10px] bg-[#B87C4C]/10 text-[#8E5C32] px-1.5 py-0.5 rounded-full">
+                    Scheduled
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => (window.location.href = "/dashboard?tab=purchase")}
+                className="text-[10px] text-[#B87C4C] hover:text-[#8E5C32] font-medium w-full text-center pt-1"
+              >
+                Browse →
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6 place-items-center">
         {cards.map((card, index) => (

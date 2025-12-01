@@ -9,171 +9,150 @@ import Subscription from "../models/Subscription.js";
 import Notification from "../models/Notification.js";
 import Category from "../models/SkillCategory.js";
 
-// ✅ SEND REQUEST
+
+/*
+  SEND REQUEST (small change: check receiver active subscription & swaps)
+*/
 export const sendRequest = async (req, res) => {
   try {
     const { SenderId, ReceiverId, SkillToLearnId } = req.body;
 
-    console.log("🟢 Incoming Request:", { SenderId, ReceiverId, SkillToLearnId });
-
     if (!SenderId || !ReceiverId || !SkillToLearnId)
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required fields." });
+      return res.status(400).json({ success: false, message: "Missing required fields." });
 
-    // 1️⃣ Fetch sender & receiver
     const [senderUser, receiverUser] = await Promise.all([
       User.findById(SenderId).lean(),
       User.findById(ReceiverId).lean(),
     ]);
 
-    const senderName = senderUser?.Username || "Unknown";
-    const receiverName = receiverUser?.Username || "Unknown";
+    if (!receiverUser)
+      return res.status(404).json({ success: false, message: "Selected member not found." });
 
-    // 🚫 Block if receiver is suspended / inactive
-    if (!receiverUser) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Selected member not found." });
-    }
+    if (receiverUser.isSuspended || receiverUser.Status === "Inactive")
+      return res.status(400).json({ success: false, message: "This member is not available for swaps." });
 
-    if (receiverUser.isSuspended || receiverUser.Status === "Inactive") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "You cannot start a skill swap with this member because their account is currently suspended or inactive.",
-      });
-    }
+    if (senderUser?.isSuspended || senderUser?.Status === "Inactive")
+      return res.status(400).json({ success: false, message: "Your account is not allowed to send requests." });
 
-    // (Optional safety) – block if sender himself is suspended
-    if (senderUser?.isSuspended || senderUser?.Status === "Inactive") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Your account is currently suspended or inactive. You cannot send new skill swap requests.",
-      });
-    }
+    // Check active plan for both users
+    const [senderSub, receiverSub] = await Promise.all([
+      Subscription.findOne({ UserId: SenderId, Status: "Active", SwapsRemaining: { $gt: 0 } }),
+      Subscription.findOne({ UserId: ReceiverId, Status: "Active", SwapsRemaining: { $gt: 0 } }),
+    ]);
 
-    // 2️⃣ Check subscription
-    const senderSub = await Subscription.findOne({ UserId: SenderId });
     if (!senderSub)
-      return res
-        .status(404)
-        .json({ success: false, message: "Subscription not found." });
+      return res.status(400).json({ success: false, message: "You have no active plan with swaps remaining. Please purchase a plan." });
 
-    if (senderSub.SwapsRemaining <= 0)
-      return res.status(400).json({
-        success: false,
-        message: "You have no swaps remaining. Please purchase a plan.",
-      });
+    if (!receiverSub)
+      return res.status(400).json({ success: false, message: "Receiver does not have an active plan with swaps remaining." });
 
-    // 3️⃣ Get learning skill (UserSkill → Skill)
     const userSkillToLearn = await UserSkill.findById(SkillToLearnId).lean();
     if (!userSkillToLearn)
-      return res
-        .status(404)
-        .json({ success: false, message: "Skill not found." });
+      return res.status(404).json({ success: false, message: "Skill not found." });
 
-    const learnSkill = await Skill.findOne({
-      SkillId: userSkillToLearn.SkillId,
-    }).lean();
+    const learnSkill = await Skill.findOne({ SkillId: userSkillToLearn.SkillId }).lean();
     const learningSkillId = learnSkill?.SkillId;
-    const learningSkillName = learnSkill?.Name || "Unknown";
 
-    // 4️⃣ Check existing Active/Completed swaps to avoid duplicates
-    const swaps = await SkillSwap.find({
-      Status: { $in: ["Active", "Completed"] },
-    })
+    // Load all swaps safely
+    const swaps = await SkillSwap.find({})
       .populate({
         path: "RequestId",
         select: "SenderId ReceiverId SkillToLearnId SkillToTeachId",
       })
       .lean();
 
-    let duplicateFound = false;
+   let duplicateFound = false;
 
-    for (const swap of swaps) {
-      const reqData = swap.RequestId;
-      if (!reqData) continue;
+for (const swap of swaps) {
+  const reqData = swap?.RequestId;
+  if (!reqData) continue;
 
-      const [learn, teach] = await Promise.all([
-        UserSkill.findById(reqData.SkillToLearnId).lean(),
-        reqData.SkillToTeachId
-          ? UserSkill.findById(reqData.SkillToTeachId).lean()
-          : null,
-      ]);
+  // -------------------------
+  // LOAD LEARN SKILL (SAFE)
+  // -------------------------
+  let learnSkillIdExisting = null;
 
-      const existingLearnSkill = learn
-        ? await Skill.findOne({ SkillId: learn.SkillId }).lean()
-        : null;
-      const existingTeachSkill = teach
-        ? await Skill.findOne({ SkillId: teach.SkillId }).lean()
-        : null;
-
-      const existingLearnSkillId = existingLearnSkill?.SkillId || null;
-      const existingTeachSkillId = existingTeachSkill?.SkillId || null;
-
-      // ✅ Same direction
-      const sameDirection =
-        String(reqData.SenderId) === String(SenderId) &&
-        String(reqData.ReceiverId) === String(ReceiverId) &&
-        (existingLearnSkillId === learningSkillId ||
-          existingTeachSkillId === learningSkillId);
-
-      // ✅ Reverse direction
-      const reverseDirection =
-        String(reqData.SenderId) === String(ReceiverId) &&
-        String(reqData.ReceiverId) === String(SenderId) &&
-        (existingLearnSkillId === learningSkillId ||
-          existingTeachSkillId === learningSkillId);
-
-      if (sameDirection || reverseDirection) {
-        duplicateFound = true;
-        break;
-      }
+  if (
+    reqData.SkillToLearnId &&
+    mongoose.Types.ObjectId.isValid(reqData.SkillToLearnId)
+  ) {
+    const learnDoc = await UserSkill.findById(reqData.SkillToLearnId).lean();
+    if (learnDoc) {
+      const learnSkill = await Skill.findOne({ SkillId: learnDoc.SkillId }).lean();
+      learnSkillIdExisting = learnSkill?.SkillId || null;
     }
+  }
 
-    if (duplicateFound) {
+  // -------------------------
+  // LOAD TEACH SKILL (SAFE)
+  // -------------------------
+  let teachSkillIdExisting = null;
+
+  if (
+    reqData.SkillToTeachId &&
+    mongoose.Types.ObjectId.isValid(reqData.SkillToTeachId)
+  ) {
+    const teachDoc = await UserSkill.findById(reqData.SkillToTeachId).lean();
+    if (teachDoc) {
+      const teachSkill = await Skill.findOne({ SkillId: teachDoc.SkillId }).lean();
+      teachSkillIdExisting = teachSkill?.SkillId || null;
+    }
+  }
+
+  // -------------------------
+  // DUPLICATE CHECK LOGIC
+  // -------------------------
+  const sameDirection =
+    String(reqData.SenderId) === String(SenderId) &&
+    String(reqData.ReceiverId) === String(ReceiverId) &&
+    (learnSkillIdExisting === learningSkillId ||
+     teachSkillIdExisting === learningSkillId);
+
+  const reverseDirection =
+    String(reqData.SenderId) === String(ReceiverId) &&
+    String(reqData.ReceiverId) === String(SenderId) &&
+    (learnSkillIdExisting === learningSkillId ||
+     teachSkillIdExisting === learningSkillId);
+
+  if (sameDirection || reverseDirection) {
+    duplicateFound = true;
+    break;
+  }
+}
+
+
+    // If duplicate, return custom message
+    if (duplicateFound)
       return res.status(400).json({
         success: false,
-        message:
-          "A swap between you and this user for these skills already exists (Active or Completed).",
+        message: "A swap between you and this user for this skill already exists.",
       });
-    }
 
-    // 5️⃣ Prevent duplicate pending requests (both directions)
+    // Prevent duplicate pending requests
     const existingPending = await Request.findOne({
       $or: [
         { SenderId, ReceiverId, SkillToLearnId, Status: "Pending" },
-        {
-          SenderId: ReceiverId,
-          ReceiverId: SenderId,
-          SkillToLearnId,
-          Status: "Pending",
-        },
+        { SenderId: ReceiverId, ReceiverId: SenderId, SkillToLearnId, Status: "Pending" },
       ],
     });
 
-    if (existingPending) {
+    if (existingPending)
       return res.status(400).json({
         success: false,
-        message:
-          "A pending request already exists between you and this user for this skill.",
+        message: "A pending request already exists between you and this user for this skill.",
       });
-    }
 
-    // 6️⃣ Create new request + notification
-    const newReq = new Request({
+    // CREATE request
+    const newReq = await Request.create({
       SenderId,
       ReceiverId,
       SkillToLearnId,
       Status: "Pending",
     });
-    await newReq.save();
 
     await Notification.create({
       userId: ReceiverId,
-      message: `${senderName} sent you a new skill swap request.`,
+      message: `${senderUser.Username} sent you a new skill swap request.`,
       type: "request_sent",
       link: `/dashboard?tab=requestinfo&view=received`,
     });
@@ -183,15 +162,165 @@ export const sendRequest = async (req, res) => {
       message: "Request sent successfully!",
       request: newReq,
     });
+
   } catch (err) {
-    console.error("❌ Error sending request:", err);
-    res.status(500).json({
+    console.error("Error sending request:", err);
+     console.error("🔥🔥 FULL SEND REQUEST ERROR ↓↓↓");
+  console.error(err);
+    return res.status(500).json({
       success: false,
       message: "Server error while sending request.",
       error: err.message,
     });
   }
 };
+
+
+
+
+/*
+  CONFIRM SWAP — final fixed version:
+  - Requires Request.Status === "Accepted"
+  - Ensures both participants have Active plan with SwapsRemaining > 0
+  - Deducts 1 from both, expires plan if SwapsRemaining reaches 0, promotes earliest Upcoming plan
+  - Creates SkillSwap and notifications
+*/
+export const confirmSwap = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+      return res.status(400).json({ success: false, message: "Invalid requestId" });
+    }
+
+    const request = await Request.findById(requestId)
+      .populate("SenderId", "_id Username")
+      .populate("ReceiverId", "_id Username");
+
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Request not found" });
+    }
+
+    if (request.Status !== "Accepted") {
+      return res.status(400).json({ success: false, message: "Request must be accepted before confirming." });
+    }
+
+    const senderId = request.SenderId._id;
+    const receiverId = request.ReceiverId._id;
+
+    // Fetch ACTIVE subscription with swaps remaining
+    const senderSub = await Subscription.findOne({
+      UserId: senderId,
+      Status: "Active",
+      SwapsRemaining: { $gt: 0 }
+    });
+
+    const receiverSub = await Subscription.findOne({
+      UserId: receiverId,
+      Status: "Active",
+      SwapsRemaining: { $gt: 0 }
+    });
+
+    if (!senderSub || !receiverSub) {
+      return res.status(400).json({ success: false, message: "Both users must have an active plan with available swaps." });
+    }
+
+    // Deduct swap from both users
+    senderSub.SwapsRemaining = Math.max(0, senderSub.SwapsRemaining - 1);
+    receiverSub.SwapsRemaining = Math.max(0, receiverSub.SwapsRemaining - 1);
+
+    await senderSub.save();
+    await receiverSub.save();
+
+    /*
+      ------------------------------------------------------
+      EXPIRES plan when swapRemaining = 0
+      And activates next upcoming plan
+      ------------------------------------------------------
+    */
+    const expireAndPromote = async (sub) => {
+      if (sub.SwapsRemaining === 0) {
+        sub.Status = "Expired";
+        await sub.save();
+
+        const nextUpcoming = await Subscription.findOne({
+          UserId: sub.UserId,
+          Status: "Upcoming"
+        }).sort({ StartDate: 1 });
+
+        if (nextUpcoming) {
+          nextUpcoming.Status = "Active";
+          nextUpcoming.StartDate = new Date();
+          await nextUpcoming.save();
+
+          await Notification.create({
+            userId: sub.UserId,
+            message: `Your upcoming subscription has been activated.`,
+            type: "subscription_promoted",
+            link: "/dashboard?tab=purchase",
+          });
+        } else {
+          await Notification.create({
+            userId: sub.UserId,
+            message: "You have used all your swap credits. Please purchase a plan to continue swapping.",
+            type: "swap_limit_reached",
+            link: "/dashboard?tab=purchase",
+          });
+        }
+      }
+    };
+
+    // Expire/promote logic for both
+    await Promise.all([
+      expireAndPromote(senderSub),
+      expireAndPromote(receiverSub)
+    ]);
+
+    // Create Skill Swap session
+    const skillSwap = await SkillSwap.create({
+      RequestId: request._id,
+      Status: "Active",
+      Confirmations: {
+        SenderConfirmed: false,
+        ReceiverConfirmed: false,
+      },
+    });
+
+    const notifyMessage = `${request.SenderId.Username} and ${request.ReceiverId.Username} have started a Skill Swap session.`;
+
+    // Notify sender
+    await Notification.create({
+      userId: senderId,
+      message: notifyMessage,
+      type: "swap_started",
+      link: "/dashboard?tab=swapactivity",
+    });
+
+    // Notify receiver
+    await Notification.create({
+      userId: receiverId,
+      message: notifyMessage,
+      type: "swap_started",
+      link: "/dashboard?tab=swapactivity",
+    });
+
+    return res.json({
+      success: true,
+      message: "Swap confirmed successfully.",
+      skillSwap,
+    });
+
+  } catch (err) {
+    console.error("Confirm Swap Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error.",
+    });
+  }
+};
+
+
+
 
 // ✅ CANCEL REQUEST (Pending/Accepted/Rejected)
 export const cancelRequest = async (req, res) => {
@@ -233,153 +362,9 @@ export const cancelRequest = async (req, res) => {
   }
 };
 
-// ✅ CONFIRM SWAP (Request → SkillSwap + deduct swaps)
-export const confirmSwap = async (req, res) => {
-  try {
-    const { requestId } = req.params;
 
-    const request = await Request.findById(requestId)
-      .populate("SenderId", "_id Username")
-      .populate("ReceiverId", "_id Username");
 
-    if (!request) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Request not found" });
-    }
 
-    if (request.Status !== "Accepted") {
-      return res
-        .status(400)
-        .json({ success: false, message: "Request not accepted yet." });
-    }
-
-    const senderSub = await Subscription.findOne({
-      UserId: request.SenderId._id,
-    });
-    const receiverSub = await Subscription.findOne({
-      UserId: request.ReceiverId._id,
-    });
-
-    if (!senderSub || !receiverSub) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Subscription not found." });
-    }
-
-    senderSub.SwapsRemaining = Math.max(senderSub.SwapsRemaining - 1, 0);
-    receiverSub.SwapsRemaining = Math.max(receiverSub.SwapsRemaining - 1, 0);
-
-    await senderSub.save();
-    await receiverSub.save();
-
-    const skillSwap = await SkillSwap.create({
-      RequestId: request._id,
-      Status: "Active",
-      Confirmations: {
-        SenderConfirmed: false,
-        ReceiverConfirmed: false,
-      },
-    });
-
-    const alertMessage =
-      "⚠️ You have no remaining swap credits. Please purchase a plan to continue swapping.";
-
-    if (senderSub.SwapsRemaining === 0) {
-      await Notification.create({
-        userId: request.SenderId._id,
-        message: alertMessage,
-        type: "swap_limit_reached",
-        link: "/dashboard?tab=purchase",
-      });
-    }
-
-    if (receiverSub.SwapsRemaining === 0) {
-      await Notification.create({
-        userId: request.ReceiverId._id,
-        message: alertMessage,
-        type: "swap_limit_reached",
-        link: "/dashboard?tab=purchase",
-      });
-    }
-
-    const senderName = request.SenderId.Username;
-    const receiverName = request.ReceiverId.Username;
-    const message = `${senderName} and ${receiverName} have started a Skill Swap session.`;
-
-    await Notification.create({
-      userId: request.SenderId._id,
-      message,
-      type: "request_confirmed",
-      link: "/dashboard?tab=swapactivity",
-    });
-
-    await Notification.create({
-      userId: request.ReceiverId._id,
-      message,
-      type: "request_confirmed",
-      link: "/dashboard?tab=swapactivity",
-    });
-
-    return res.json({
-      success: true,
-      message: "Swap confirmed successfully.",
-      skillSwap,
-    });
-  } catch (err) {
-    console.error("❌ Error confirming swap:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Server error." });
-  }
-};
-
-// ✅ GET ALL MEMBERS WITH AVAILABLE SKILLS
-//    (🔴 Suspended / inactive users are filtered out)
-// export const getAllMembersWithSkills = async (req, res) => {
-//   try {
-//     const users = await User.find({
-//       Role: { $ne: "Admin" },
-//       $or: [
-//         { isSuspended: { $ne: true } },
-//         { isSuspended: { $exists: false } },
-//       ],
-//       Status: { $ne: "Inactive" },
-//     })
-//      .populate("City", "cityName")   // ✅ FIX: Populate ONLY cityName
-//      .lean();
-
-//     const membersWithSkills = await Promise.all(
-//       users.map(async (u) => {
-//         const [userSkills, subscription] = await Promise.all([
-//           UserSkill.find({
-//             UserId: u._id,
-//             SkillAvailability: "Available",
-//           }).lean(),
-//           Subscription.findOne({ UserId: u._id }).lean(),
-//         ]);
-
-//         const skillsWithNames = await Promise.all(
-//           userSkills.map(async (us) => {
-//             const skill = await Skill.findOne({ SkillId: us.SkillId }).lean();
-//             return { ...us, Skill: skill };
-//           })
-//         );
-
-//         return {
-//           ...u,
-//           Skills: skillsWithNames,
-//           SwapsRemaining: subscription?.SwapsRemaining ?? 0,
-//         };
-//       })
-//     );
-
-//     res.json({ success: true, members: membersWithSkills });
-//   } catch (err) {
-//     console.error("Error fetching users with skills:", err);
-//     res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
 export const getAllMembersWithSkills = async (req, res) => {
   try {
     // 1️⃣ Fetch all users (except admin)

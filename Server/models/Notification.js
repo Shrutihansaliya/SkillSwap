@@ -26,7 +26,9 @@ const NotificationSchema = new mongoose.Schema({
       "general",
       "video_upload",
       "swap_limit_reached",
-      "partner_suspended",               // 👈 important
+      "partner_suspended", 
+      "swap_started",              // ⭐ NEW
+      "subscription_promoted",     // ⭐ NEW              // 👈 important
     ],
     default: "general",
   },

@@ -38,13 +38,86 @@ function escapeHtml(input) {
  *  - refund 1 swap credit to OTHER user
  *  - send notification to other user in clear English
  */
+// async function handleUserSuspensionSwaps(suspendedUser) {
+//   try {
+//     const suspendedId = String(suspendedUser._id);
+//     const suspendedName =
+//       suspendedUser.Username || suspendedUser.Email || "this user";
+
+//     // All ACTIVE swaps with Request populated
+//     const activeSwaps = await SkillSwap.find({ Status: "Active" })
+//       .populate({
+//         path: "RequestId",
+//         select: "SenderId ReceiverId",
+//       })
+//       .lean();
+
+//     for (const swap of activeSwaps) {
+//       const req = swap.RequestId;
+//       if (!req) continue;
+
+//       const senderId = req.SenderId ? String(req.SenderId) : null;
+//       const receiverId = req.ReceiverId ? String(req.ReceiverId) : null;
+
+//       let otherUserId = null;
+
+//       if (senderId === suspendedId) otherUserId = receiverId;
+//       else if (receiverId === suspendedId) otherUserId = senderId;
+
+//       if (!otherUserId) continue; // swap not related to this suspended user
+
+//       // 1️⃣ Cancel swap
+//       try {
+//         await SkillSwap.findByIdAndUpdate(
+//           swap._id,
+//           {
+//             Status: "Cancelled",
+//             CompletedAt: new Date(),
+//           },
+//           { new: true }
+//         );
+//       } catch (err) {
+//         console.error("handleUserSuspensionSwaps: failed to cancel swap:", err);
+//       }
+
+//       // 2️⃣ Refund +1 swap credit to other user
+//       try {
+//         const sub = await Subscription.findOne({ UserId: otherUserId });
+//         if (sub) {
+//           sub.SwapsRemaining = (sub.SwapsRemaining || 0) + 1;
+//           await sub.save();
+//         }
+//       } catch (err) {
+//         console.error("handleUserSuspensionSwaps: refund error:", err);
+//       }
+
+//       // 3️⃣ Send notification
+//       try {
+//         await Notification.create({
+//           userId: otherUserId,
+//           type: "partner_suspended",
+//           message: `Your skill swap with ${suspendedName} was cancelled because their account has been suspended. One swap credit has been added back to your account.`,
+//           link: "/dashboard?tab=swapactivity",
+//         });
+//       } catch (err) {
+//         console.error("handleUserSuspensionSwaps: notification error:", err);
+//       }
+//     }
+//   } catch (err) {
+//     console.error("handleUserSuspensionSwaps: fatal error:", err);
+//   }
+// }
+
+// ----------------------
+// create report (any logged-in user)
+// ----------------------
 async function handleUserSuspensionSwaps(suspendedUser) {
   try {
     const suspendedId = String(suspendedUser._id);
     const suspendedName =
       suspendedUser.Username || suspendedUser.Email || "this user";
 
-    // All ACTIVE swaps with Request populated
+    // Find ALL active swaps
     const activeSwaps = await SkillSwap.find({ Status: "Active" })
       .populate({
         path: "RequestId",
@@ -64,9 +137,11 @@ async function handleUserSuspensionSwaps(suspendedUser) {
       if (senderId === suspendedId) otherUserId = receiverId;
       else if (receiverId === suspendedId) otherUserId = senderId;
 
-      if (!otherUserId) continue; // swap not related to this suspended user
+      if (!otherUserId) continue;
 
-      // 1️⃣ Cancel swap
+      // ------------------------------
+      // 1️⃣ Cancel the swap
+      // ------------------------------
       try {
         await SkillSwap.findByIdAndUpdate(
           swap._id,
@@ -77,21 +152,58 @@ async function handleUserSuspensionSwaps(suspendedUser) {
           { new: true }
         );
       } catch (err) {
-        console.error("handleUserSuspensionSwaps: failed to cancel swap:", err);
+        console.error("handleUserSuspensionSwaps: failed cancel:", err);
       }
 
-      // 2️⃣ Refund +1 swap credit to other user
+      // ------------------------------
+      // 2️⃣ REFUND LOGIC (3 cases)
+      // ------------------------------
       try {
-        const sub = await Subscription.findOne({ UserId: otherUserId });
-        if (sub) {
-          sub.SwapsRemaining = (sub.SwapsRemaining || 0) + 1;
-          await sub.save();
+        // CASE A: If user has ACTIVE plan → refund there
+        let activePlan = await Subscription.findOne({
+          UserId: otherUserId,
+          Status: "Active",
+        });
+
+        if (activePlan) {
+          activePlan.SwapsRemaining += 1;
+          await activePlan.save();
+        } else {
+          // CASE B: No Active plan → check if upcoming exists
+          const upcomingPlan = await Subscription.findOne({
+            UserId: otherUserId,
+            Status: "Upcoming",
+          });
+
+          if (upcomingPlan) {
+            // Promote upcoming → Active
+            upcomingPlan.Status = "Active";
+            upcomingPlan.StartDate = new Date();
+            await upcomingPlan.save();
+
+            // Refund goes into this new active plan
+            upcomingPlan.SwapsRemaining += 1;
+            await upcomingPlan.save();
+          } else {
+            // CASE C: No active & no upcoming → create new free plan
+            await Subscription.create({
+              UserId: otherUserId,
+              PlanId: null,
+              IsFreePlan: true,
+              SwapsRemaining: 1,
+              Status: "Active",
+              PaymentStatus: "Refund",
+              StartDate: new Date(),
+            });
+          }
         }
       } catch (err) {
         console.error("handleUserSuspensionSwaps: refund error:", err);
       }
 
+      // ------------------------------
       // 3️⃣ Send notification
+      // ------------------------------
       try {
         await Notification.create({
           userId: otherUserId,
@@ -108,9 +220,8 @@ async function handleUserSuspensionSwaps(suspendedUser) {
   }
 }
 
-// ----------------------
-// create report (any logged-in user)
-// ----------------------
+
+
 export const createReport = async (req, res) => {
   try {
     const reporterId = req.userId;

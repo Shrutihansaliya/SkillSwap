@@ -142,35 +142,31 @@ export const getOverviewStats = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.json({
-        success: false,
-        message: "Invalid userId",
-        stats: {}
-      });
-    }
+    // ⭐ ALWAYS get the MOST RECENT active subscription
+    const activeSub = await Subscription.findOne({
+      UserId: userId,
+      Status: "Active"
+    })
+      .sort({ StartDate: -1 })   // FIXED
+      .lean();
 
-    const userObjId = new mongoose.Types.ObjectId(userId);
+    const swapsRemaining = activeSub ? activeSub.SwapsRemaining : 0;
 
-    // Pending
+    // pending requests
     const pendingRequests = await Request.countDocuments({
-      Status: "Pending",
-      $or: [{ SenderId: userObjId }, { ReceiverId: userObjId }]
+      ReceiverId: userId,
+      Status: "Pending"
     });
 
-    // Active
+    // active swaps
     const activeSwaps = await SkillSwap.countDocuments({
       Status: "Active"
     });
 
-    // Completed
+    // completed swaps
     const completedSwaps = await SkillSwap.countDocuments({
       Status: "Completed"
     });
-
-    // Remaining
-    const subscription = await Subscription.findOne({ UserId: userObjId });
-    const swapsRemaining = subscription?.SwapsRemaining ?? 0;
 
     return res.json({
       success: true,
@@ -183,15 +179,9 @@ export const getOverviewStats = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Overview Error:", err);
-    return res.status(500).json({
-      success: false,
-      stats: {
-        swapsRemaining: 0,
-        pendingRequests: 0,
-        activeSwaps: 0,
-        completedSwaps: 0,
-      },
-    });
+    console.error("Overview error:", err);
+    return res.status(500).json({ success: false });
   }
 };
+
+

@@ -156,6 +156,55 @@ await transporter.sendMail({
 // ======================
 // VERIFY OTP
 // ======================
+// export const verifyOtp = async (req, res) => {
+//   try {
+//     const { email, otp } = req.body;
+
+//     if (!req.session || !req.session.otp)
+//       return res.status(400).json({ success: false, message: "OTP session expired. Please register again." });
+
+//     if (req.session.email !== email)
+//       return res.status(400).json({ success: false, message: "Email mismatch" });
+
+//     if (Date.now() > req.session.otpExpire)
+//       return res.status(400).json({ success: false, message: "OTP expired" });
+
+//     if (req.session.otp !== String(otp))
+//       return res.status(400).json({ success: false, message: "Invalid OTP" });
+
+//     const userData = req.session.userData;
+//     const newUser = new User({ ...userData, IsVerified: true, Status: "Active" });
+//     await newUser.save();
+
+//     // ✅ Automatically create default subscription with 2 swaps
+//     try {
+//       const subscription = new Subscription({
+//         UserId: newUser._id,
+//         PlanId: null, // or your default Plan _id
+//         SwapsRemaining: 2,
+//       });
+//       await subscription.save();
+//       console.log(`🎁 Created default subscription for ${newUser.Email}`);
+//     } catch (subErr) {
+//       console.error("Subscription creation failed:", subErr);
+//     }
+
+//     req.session.destroy();
+
+//     res.json({
+//       success: true,
+//       message: "User registered successfully",
+//       user: {
+//         UserId: newUser._id,
+//         Email: newUser.Email,
+//         Username: newUser.Username,
+//       },
+//     });
+//   } catch (err) {
+//     console.error("OTP Verify Error:", err);
+//     res.status(500).json({ success: false, message: err.message });
+//   }
+// };
 export const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -173,21 +222,46 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
 
     const userData = req.session.userData;
-    const newUser = new User({ ...userData, IsVerified: true, Status: "Active" });
+
+    // Create verified new user
+    const newUser = new User({
+      ...userData,
+      IsVerified: true,
+      Status: "Active",
+    });
     await newUser.save();
 
-    // ✅ Automatically create default subscription with 2 swaps
-    try {
-      const subscription = new Subscription({
-        UserId: newUser._id,
-        PlanId: null, // or your default Plan _id
-        SwapsRemaining: 2,
-      });
-      await subscription.save();
-      console.log(`🎁 Created default subscription for ${newUser.Email}`);
-    } catch (subErr) {
-      console.error("Subscription creation failed:", subErr);
-    }
+    // 🎁 Create FREE 2 Swap Plan
+//     try {
+      
+// await Subscription.create({
+//   UserId: newUser._id,
+//   PlanId: null,
+//   IsFreePlan: true,
+//   SwapsRemaining: 2,
+//   Status: "Active", 
+//   PaymentStatus: "Pending",
+// });
+
+//       console.log(`🎁 Free subscription created for ${newUser.Email}`);
+//     } catch (subErr) {
+//       console.error("Subscription creation failed:", subErr);
+//     }
+// create default subscription (explicit free plan)
+try {
+  const subscription = new Subscription({
+    UserId: newUser._id,
+    PlanId: null,
+    IsFreePlan: true,
+    SwapsRemaining: 2,
+    Status: "Active",
+    StartDate: new Date(),
+  });
+  await subscription.save();
+  console.log(`🎁 Created default subscription for ${newUser.Email}`);
+} catch (subErr) {
+  console.error("Subscription creation failed:", subErr);
+}
 
     req.session.destroy();
 
@@ -200,6 +274,7 @@ export const verifyOtp = async (req, res) => {
         Username: newUser.Username,
       },
     });
+
   } catch (err) {
     console.error("OTP Verify Error:", err);
     res.status(500).json({ success: false, message: err.message });
