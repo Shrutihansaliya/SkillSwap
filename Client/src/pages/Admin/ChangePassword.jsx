@@ -2,11 +2,11 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useAdmin } from "../../context/AdminContext.jsx";
-import { toast } from "react-toastify";          // ⭐ ADDED
-import "react-toastify/dist/ReactToastify.css";   // ⭐ ADDED
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const ChangePassword = () => {
-  const { user } = useAdmin(); 
+  const { user } = useAdmin();
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
@@ -20,22 +20,22 @@ const ChangePassword = () => {
     setSuccessMsg("");
 
     if (!currentPw || !newPw || !confirmPw) {
-      toast.error("Please fill all fields.");   // ⭐ replaced
+      toast.error("Please fill all fields.");
       return;
     }
 
     if (newPw !== confirmPw) {
-      toast.error("New passwords do not match.");  // ⭐ replaced
+      toast.error("New passwords do not match.");
       return;
     }
 
     if (newPw === currentPw) {
-      toast.error("New password must be different from current password."); // ⭐ replaced
+      toast.error("New password must be different from current password.");
       return;
     }
 
     if (!user?._id) {
-      toast.error("Admin not found. Please login again."); // ⭐ replaced
+      toast.error("Admin not found. Please login again.");
       return;
     }
 
@@ -51,20 +51,23 @@ const ChangePassword = () => {
         }
       );
 
-      if (res.data.success) {
-        toast.success(res.data.message); // ⭐ replaced
+      if (res.data?.success) {
+        toast.success(res.data.message || "Password updated successfully.");
         setCurrentPw("");
         setNewPw("");
         setConfirmPw("");
+        setSuccessMsg(res.data.message || "Password updated successfully.");
       } else {
-        toast.error(res.data.message);   // ⭐ replaced
+        toast.error(res.data?.message || "Failed to update password.");
+        setErrorMsg(res.data?.message || "Failed to update password.");
       }
     } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.message || "Something went wrong."); // ⭐ replaced
+      console.error("Change password error:", err);
+      toast.error(err.response?.data?.message || "Something went wrong.");
+      setErrorMsg(err.response?.data?.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -104,8 +107,12 @@ const ChangePassword = () => {
         </button>
       </form>
 
-      {/* ⭐ Toast Container */}
-      <toast.ToastContainer />
+      {/* Toast Container */}
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
+
+      {/* Optional inline messages (kept for debug/UX) */}
+      {errorMsg && <p className="text-sm text-red-600 mt-3">{errorMsg}</p>}
+      {successMsg && <p className="text-sm text-green-600 mt-3">{successMsg}</p>}
     </div>
   );
 };

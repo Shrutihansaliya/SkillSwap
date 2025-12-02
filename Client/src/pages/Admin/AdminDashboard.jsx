@@ -314,7 +314,7 @@ function DashboardContent() {
             <NavTab page="members" label="Members" />
             <NavTab page="subscriptionPlans" label="Subscription Plans" />
             <NavTab page="adminpaymentview" label="Payments" />
-            <NavTab page="reports" label="Reports" />
+            <NavTab page="reports" label="Complaints" />
             <NavTab page="adminSwaps" label="Swap Management" />
           </div>
         </div>
