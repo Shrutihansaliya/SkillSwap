@@ -3,22 +3,21 @@
 //   const module = await import("pdf-parse");
 //   pdfParse = module.default || module; 
 // })();
-
-
-import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
-
 import fs from "fs";
 import path from "path";
-import mongoose from "mongoose";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const _pdfParseModule = require("pdf-parse");
+const pdfParse = (_pdfParseModule && _pdfParseModule.default) ? _pdfParseModule.default : _pdfParseModule;
 import UserSkill from "../models/UserSkill.js";
 import SkillSwap from "../models/SkillSwap.js";
 import Skill from "../models/Skill.js";
 import Category from "../models/SkillCategory.js";
 
-
 import PDFDocument from "pdfkit";
+
+
+
 /* ----------------------------------------------------------
    GET USER SKILLS
 ----------------------------------------------------------- */
@@ -40,6 +39,7 @@ export const getUserSkills = async (req, res) => {
         return {
           _id: userSkill._id,
           SkillId: userSkill.SkillId,
+           CategoryId: skill?.CategoryId || null, // <-- add this
           SkillName: skill?.Name || "Unknown Skill",
           CategoryName: category?.CategoryName || "Unknown Category",
           CertificateURL: userSkill.CertificateURL,
@@ -92,30 +92,40 @@ export const getPdfContent = async (req, res) => {
     if (!skill || !skill.ContentFileURL)
       return res.status(404).json({ success: false, message: "PDF not found" });
 
-    const filePath = path.join(
-      process.cwd(),
-      skill.ContentFileURL.replace("/", "")
-    );
+    // normalize path (remove leading slash if present)
+    const rel = String(skill.ContentFileURL || "").replace(/^\//, "");
+    const filePath = path.join(process.cwd(), rel);
 
     if (!fs.existsSync(filePath))
       return res.status(404).json({ success: false, message: "PDF file missing" });
 
     const dataBuffer = fs.readFileSync(filePath);
 
-    // 🔥 NOW pdfParse IS A FUNCTION
-    const parsed = await pdfParse(dataBuffer);
+    // ==== DYNAMIC LOAD / NORMALIZE pdf-parse MODULE ====
+    // dynamic import ensures we get the exact runtime export shape
+    const pdfParseModule = await import("pdf-parse");
+    // pdf-parse sometimes exports the function directly, sometimes under .default
+    const pdfParse = (pdfParseModule && pdfParseModule.default) ? pdfParseModule.default : pdfParseModule;
 
+    // DEBUG: log module shape once (remove after debugging)
+    console.log("pdf-parse module type:", typeof pdfParse, "module keys:", Object.keys(pdfParseModule || {}));
+
+    if (typeof pdfParse !== "function") {
+      console.error("pdfParse is not a function after dynamic import. Module:", pdfParseModule);
+      return res.status(500).json({ success: false, message: "PDF parser not available on server." });
+    }
+
+    const parsed = await pdfParse(dataBuffer);
     return res.json({
       success: true,
-      text: parsed.text || "",
+      text: parsed && parsed.text ? String(parsed.text) : "",
       templateType: "main",
     });
   } catch (err) {
-    console.error("PDF read error:", err);
+    console.error("PDF read error:", err && (err.stack || err.message || err));
     res.status(500).json({ success: false, message: "Failed to read PDF" });
   }
 };
-
 
 
 /* ----------------------------------------------------------

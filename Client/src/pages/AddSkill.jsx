@@ -1,755 +1,535 @@
-// src/pages/MySkill.jsx
-import React, { useEffect, useState } from "react";
+// src/pages/AddSkill.jsx
+import React, { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import {
-  FiPlus,
-  FiEdit,
-  FiTrash2,
-  FiBookOpen,
-  FiDownload,
-  FiRefreshCw,
-  FiFileText,
-} from "react-icons/fi";
-import AddSkill from "./AddSkill";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
 
-const API_BASE = "http://localhost:4000";
-const MAX_PDF_BYTES = 5 * 1024 * 1024; // 5 MB
+function AddSkill() {
+  const navigate = useNavigate();
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
 
-export default function MySkill({ userId }) {
-  const [skills, setSkills] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState("add"); // "add" | "edit"
-  const [editingSkill, setEditingSkill] = useState(null);
+  useEffect(() => {
+    if (!user) {
+      alert("Please login or verify OTP first.");
+      navigate("/otp-verify");
+    }
+  }, [user, navigate]);
 
   const [categories, setCategories] = useState([]);
-  const [skillsByCategory, setSkillsByCategory] = useState([]); // normalized: { id, name, raw }
-  const [successMsg, setSuccessMsg] = useState("");
-  const [pdfText, setPdfText] = useState("");
-  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [skillEntries, setSkillEntries] = useState([
+    {
+      CategoryId: "",
+      Skills: [],
+      SkillId: "",
+      Certificate: null,
+      Source: "",
+      TemplateType: "", // "main" | "sub" | "image"
+      TemplateData: null,
+      TemplateImage: null,
+    },
+  ]);
 
-  const [formData, setFormData] = useState({
-    CategoryId: "",
-    SkillId: "",
-    Source: "",
-    Certificate: null,
-    ContentFile: null,
-  });
+  // default logo path (from conversation history)
+  const logoUrl = "/mnt/data/babcd0c6-8a3c-4e8c-8e5b-7ac104a02d2e.png";
 
-  const [error, setError] = useState("");
-
-  const showSuccess = (msg) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(""), 2500);
-  };
-
-  /* -------------------- fetch user skills -------------------- */
-  const fetchSkills = async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      // adjust endpoint if your backend mounts differently
-      const res = await axios.get(`${API_BASE}/api/myskills/${userId}`);
-      // fallback shapes: res.data.data or res.data.skills or res.data
-      const data = res.data?.data || res.data?.skills || res.data || [];
-      setSkills(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Error fetching user skills:", err);
-      setSkills([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // fetch categories
   useEffect(() => {
-    fetchSkills();
-  }, [userId]);
-
-  /* -------------------- UX effects -------------------- */
-  useEffect(() => {
-    document.body.style.overflow = showModal ? "hidden" : "auto";
-    return () => {
-      document.body.style.overflow = "auto";
-    };
-  }, [showModal]);
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") {
-        setShowModal(false);
-        setEditingSkill(null);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    axios
+      .get("http://localhost:4000/api/users/categories")
+      .then((res) => setCategories(res.data || []))
+      .catch((err) => console.error(err));
   }, []);
 
-  /* -------------------- fetch categories -------------------- */
-  useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const res = await axios.get(`${API_BASE}/api/users/categories`);
-        const data = Array.isArray(res.data)
-          ? res.data
-          : res.data?.data || res.data || [];
-        setCategories(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Error loading categories:", err);
-        setCategories([]);
-      }
-    };
-    loadCategories();
-  }, []);
-
-  /* --------------------
-     handleCategoryChange
-     - normalizes returned skills into { id, name, raw } so selects are consistent
-     - accepts optional presetSkillId to auto-select after load
-  -------------------- */
-  const handleCategoryChange = async (categoryId, presetSkillId = "") => {
-    const catIdStr = categoryId ? String(categoryId) : "";
-    // update CategoryId in form using the same shape we use for <option value>
-    setFormData((p) => ({ ...p, CategoryId: catIdStr, SkillId: "" }));
-    setSkillsByCategory([]);
-    if (!catIdStr) return [];
-
+  // helper to fetch skills for a category
+  const fetchSkillsForRow = async (index, categoryId) => {
+    if (!categoryId) return;
     try {
       const res = await axios.get(
-        `${API_BASE}/api/users/skills/category/${catIdStr}`
+        `http://localhost:4000/api/users/skills/category/${categoryId}`
       );
-      const raw = Array.isArray(res.data)
-        ? res.data
-        : res.data?.data || res.data || [];
-      const normalized = (raw || []).map((sk) => {
-        // prefer sk._id (mongo id) or fallback to SkillId numeric id
-        const id = sk._id || sk.SkillId || sk.id || sk.SkillId;
-        const name = sk.Name || sk.SkillName || sk.name || "Unnamed Skill";
-        return { id: String(id), name, raw: sk };
-      });
-      setSkillsByCategory(normalized);
-
-      if (presetSkillId) {
-        // presetSkillId might be an object or id — normalize to string and try to match
-        const rawPreset =
-          presetSkillId?._id || presetSkillId?.SkillId || presetSkillId || "";
-        const presetStr = String(rawPreset);
-        // try to find matching id in normalized list; if not found, still set to presetStr
-        const found = normalized.find((n) => n.id === presetStr);
-        setFormData((p) => ({ ...p, SkillId: found ? found.id : presetStr }));
-      }
-
-      return normalized;
+      const newEntries = [...skillEntries];
+      newEntries[index].Skills = res.data || [];
+      newEntries[index].SkillId = "";
+      setSkillEntries(newEntries);
     } catch (err) {
-      console.error("Error loading skills for category:", err);
-      setSkillsByCategory([]);
-      return [];
+      console.error(err);
     }
   };
 
-  /* -------------------- open add modal -------------------- */
-  const openAddModal = () => {
-    setModalMode("add");
-    setEditingSkill(null);
-    setFormData({
-      CategoryId: "",
-      SkillId: "",
-      Source: "",
-      Certificate: null,
-      ContentFile: null,
-    });
-    setSkillsByCategory([]);
-    setError("");
-    setShowModal(true);
+  const handleCategoryChange = (index, categoryId) => {
+    const newEntries = [...skillEntries];
+    newEntries[index].CategoryId = categoryId;
+    newEntries[index].SkillId = "";
+    newEntries[index].Skills = [];
+    setSkillEntries(newEntries);
+    fetchSkillsForRow(index, categoryId);
   };
 
-  /* -------------------- open edit modal (fixed binding) -------------------- */
-  const openEditModal = async (item) => {
-    setModalMode("edit");
-    setEditingSkill(item);
-
-    // Normalize category ID:
-    // item.CategoryId could be: ObjectId, { _id, CategoryId }, numeric CategoryId, or undefined
-    let normalizedCategoryId = "";
-    if (!item) normalizedCategoryId = "";
-    else if (typeof item.CategoryId === "object" && item.CategoryId !== null) {
-      normalizedCategoryId =
-        item.CategoryId._id || item.CategoryId.CategoryId || item.CategoryId;
-    } else if (item.Category || (item.CategoryId && typeof item.CategoryId !== "object")) {
-      // maybe populated under item.Category._id or plain item.CategoryId numeric
-      normalizedCategoryId =
-        (item.Category && (item.Category._id || item.Category.CategoryId)) ||
-        item.CategoryId ||
-        item.categoryId ||
-        "";
-    } else {
-      normalizedCategoryId = item.categoryId || item.CategoryId || "";
-    }
-    normalizedCategoryId = normalizedCategoryId ? String(normalizedCategoryId) : "";
-
-    // Normalize skill id:
-    // item.SkillId might be populated object or numeric id in various shapes
-    let normalizedSkillId = "";
-    if (typeof item.SkillId === "object" && item.SkillId !== null) {
-      normalizedSkillId = item.SkillId._id || item.SkillId.SkillId || item.SkillId;
-    } else {
-      normalizedSkillId = item.SkillId || item.Skill || item.skillId || item.skill || "";
-    }
-    normalizedSkillId = normalizedSkillId ? String(normalizedSkillId) : "";
-
-    // pre-set form (SkillId left blank until skillsByCategory loaded)
-    setFormData({
-      CategoryId: normalizedCategoryId || "",
-      SkillId: "",
-      Source: item.Source || "",
-      Certificate: null,
-      ContentFile: null,
-    });
-    setError("");
-    setShowModal(true);
-
-    // Load existing PDF content for editing preview
-    setLoadingPdf(true);
-    try {
-      const res = await axios.get(`${API_BASE}/api/myskills/content/${item._id}`);
-      setPdfText(res.data.text || "");
-    } catch (e) {
-      setPdfText("Could not read PDF content.");
-    }
-    setLoadingPdf(false);
-
-    // Load skills for this category and set SkillId from normalizedSkillId
-    if (normalizedCategoryId) {
-      await handleCategoryChange(normalizedCategoryId, normalizedSkillId);
-    } else {
-      setSkillsByCategory([]);
-      setFormData((p) => ({ ...p, SkillId: normalizedSkillId || "" }));
-    }
+  const handleSkillChange = (index, skillId) => {
+    const newEntries = [...skillEntries];
+    newEntries[index].SkillId = skillId;
+    setSkillEntries(newEntries);
   };
 
-  /* -------------------- file validation -------------------- */
-  const validatePdfFile = (file) => {
-    if (!file) return { ok: true };
-    if (file.type !== "application/pdf") {
-      return { ok: false, msg: "Only PDF files are allowed." };
-    }
-    if (file.size > MAX_PDF_BYTES) {
-      return {
-        ok: false,
-        msg: `PDF must be ${MAX_PDF_BYTES / (1024 * 1024)} MB or smaller.`,
-      };
-    }
-    return { ok: true };
+  const handleCertificateChange = (index, file) => {
+    const newEntries = [...skillEntries];
+    newEntries[index].Certificate = file;
+    setSkillEntries(newEntries);
   };
 
-  /* -------------------- submit (edit) -------------------- */
+  const handleSourceChange = (index, value) => {
+    const newEntries = [...skillEntries];
+    newEntries[index].Source = value;
+    setSkillEntries(newEntries);
+  };
+
+  const handleTemplateTypeChange = (index, value) => {
+    const newEntries = [...skillEntries];
+    newEntries[index].TemplateType = value;
+    newEntries[index].TemplateData = null;
+    newEntries[index].TemplateImage = null;
+    setSkillEntries(newEntries);
+  };
+
+  const handleTemplateDataChange = (index, value) => {
+    const newEntries = [...skillEntries];
+    newEntries[index].TemplateData = value;
+    setSkillEntries(newEntries);
+  };
+
+  const handleTemplateImageChange = (index, file) => {
+    const newEntries = [...skillEntries];
+    newEntries[index].TemplateImage = file;
+    setSkillEntries(newEntries);
+  };
+
+  const addSkillRow = () => {
+    if (skillEntries.length >= 5) return alert("Maximum 5 skills allowed.");
+    setSkillEntries([
+      ...skillEntries,
+      {
+        CategoryId: "",
+        Skills: [],
+        SkillId: "",
+        Certificate: null,
+        Source: "",
+        TemplateType: "",
+        TemplateData: null,
+        TemplateImage: null,
+      },
+    ]);
+  };
+
+  const removeSkillRow = (index) => {
+    if (skillEntries.length <= 1) return alert("At least 1 skill required.");
+    const newEntries = skillEntries.filter((_, i) => i !== index);
+    setSkillEntries(newEntries);
+  };
+
+  // Build payload and submit (same as your existing flow)
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    if (!user) return alert("You must be logged in to add skills.");
 
-    // For edit flow editingSkill should be truthy
-    if (!editingSkill && !formData.SkillId) {
-      setError("Please select a skill.");
-      return;
-    }
-
-    const certValidation = validatePdfFile(formData.Certificate);
-    if (!certValidation.ok) {
-      setError(certValidation.msg);
-      return;
-    }
-    const contentValidation = validatePdfFile(formData.ContentFile);
-    if (!contentValidation.ok) {
-      setError(contentValidation.msg);
-      return;
+    for (let i = 0; i < skillEntries.length; i++) {
+      const s = skillEntries[i];
+      if (!s.CategoryId || !s.SkillId)
+        return alert(`Please select category and skill for row ${i + 1}`);
+      if (!s.TemplateType) return alert(`Please select template for row ${i + 1}`);
+      if (s.TemplateType === "image" && !s.TemplateImage)
+        return alert(`Please upload image for template on row ${i + 1}`);
+      if (s.TemplateType === "main" && !s.TemplateData)
+        return alert(`Enter main topics for row ${i + 1}`);
+      if (s.TemplateType === "sub" && !s.TemplateData)
+        return alert(`Enter topics + subtopics for row ${i + 1}`);
     }
 
     try {
-      const fd = new FormData();
-      fd.append("UserId", userId);
-      if (formData.SkillId) fd.append("SkillId", formData.SkillId);
-      if (formData.Source) fd.append("Source", formData.Source);
-      if (formData.Certificate) fd.append("Certificate", formData.Certificate);
-      if (formData.ContentFile) fd.append("ContentFile", formData.ContentFile);
-      if (editingSkill) {
-        fd.append("EditedText", pdfText);
-      }
+      const formData = new FormData();
+      formData.append("UserId", user._id);
 
-      if (editingSkill) {
-        await axios.put(`${API_BASE}/api/myskills/${editingSkill._id}`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        showSuccess("Skill updated successfully! ✨");
-      } else {
-        await axios.post(`${API_BASE}/api/myskills`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        showSuccess("Skill added successfully! 🎉");
-      }
+      const skillDataPayload = skillEntries.map((s) => ({
+        SkillId: Number(s.SkillId),
+        Source: s.Source || null,
+        TemplateType: s.TemplateType,
+        TemplateData: s.TemplateData || null,
+      }));
+      formData.append("SkillData", JSON.stringify(skillDataPayload));
 
-      await fetchSkills();
-      setShowModal(false);
-      setEditingSkill(null);
+      skillEntries.forEach((entry) => {
+        formData.append("certificates", entry.Certificate || "");
+      });
+
+      skillEntries.forEach((entry) => {
+        if (entry.TemplateImage) {
+          formData.append("TemplateImages", entry.TemplateImage);
+        } else {
+          formData.append("TemplateImages", new Blob([]), "");
+        }
+      });
+
+      await axios.post("http://localhost:4000/api/users/user-skills", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      alert("✅ Skills added successfully!");
+      navigate("/dashboard");
     } catch (err) {
-      console.error("Error saving skill:", err);
-      const msg = err.response?.data?.message || "Server error while saving skill.";
-      setError(msg);
+      console.error(err);
+      alert("Error: " + (err.response?.data?.message || err.message));
     }
   };
 
-  const handleDisable = async (id) => {
-    if (!window.confirm("Are you sure you want to disable this skill?")) return;
-    try {
-      const res = await axios.put(`${API_BASE}/api/myskills/disable/${id}`);
-      if (!res.data?.success) {
-        alert(res.data.message || "Cannot disable skill at this time.");
-        return;
-      }
-      showSuccess("Skill disabled (set to Unavailable).");
-      await fetchSkills();
-    } catch (err) {
-      console.error("Error disabling skill:", err);
-      alert("Error disabling skill");
+  // Helper: find CategoryName and SkillName for a given entry
+  const getCategoryName = (catId) => {
+    const c = categories.find((x) => String(x.CategoryId) === String(catId));
+    return c ? c.CategoryName : "";
+  };
+
+  const getSkillNameFromRow = (entry) => {
+    const s = entry.Skills?.find((x) => String(x.SkillId) === String(entry.SkillId));
+    return s ? s.Name : "";
+  };
+
+  // For preview: create object URLs for template images
+  const imagePreviews = useMemo(() => {
+    return skillEntries.map((entry) =>
+      entry.TemplateImage ? URL.createObjectURL(entry.TemplateImage) : null
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skillEntries.map((e) => e.TemplateImage)]);
+
+  // Render preview block for a single skill entry
+  const renderPreviewForEntry = (entry, idx) => {
+    const categoryName = getCategoryName(entry.CategoryId);
+    const skillName = getSkillNameFromRow(entry);
+
+    if (!entry.TemplateType) {
+      return (
+        <div className="p-4 text-sm text-gray-500 italic">Select a template and enter content to preview.</div>
+      );
     }
-  };
 
-  const handleReactivate = async (id) => {
-    try {
-      const res = await axios.put(`${API_BASE}/api/myskills/reactivate/${id}`);
-      if (!res.data?.success) {
-        alert(res.data?.message || "Could not reactivate skill");
-        return;
-      }
-      showSuccess("Skill reactivated!");
-      await fetchSkills();
-    } catch (err) {
-      console.error("Error reactivating skill:", err);
-      alert("Error reactivating skill");
-    }
-  };
-
-  const onCertificateChange = (file) => {
-    setFormData((p) => ({ ...p, Certificate: file }));
-  };
-  const onContentFileChange = (file) => {
-    setFormData((p) => ({ ...p, ContentFile: file }));
-  };
-
-  const isUnavailable = (s) =>
-    s?.Status === "Unavailable" || s?.SkillAvailability === "Unavailable";
-
-  useEffect(() => {
-    const onSkillAdded = async () => {
-      setShowModal(false);
-      setEditingSkill(null);
-      await fetchSkills();
-      showSuccess("Skill added!");
-    };
-    window.addEventListener("skillAdded", onSkillAdded);
-    return () => window.removeEventListener("skillAdded", onSkillAdded);
-  }, []);
-
-  /* -------------------- Render -------------------- */
-  return (
-    <div className="p-6 sm:p-8 bg-[#F7F4EA] rounded-2xl shadow-md min-h-[80vh] border border-[#A8BBA3]/60">
-      <style>{`
-        .skill-popup { background: #F7EFE5; border-radius: 20px; padding: 22px; border: 1px solid #D8C7B2; box-shadow: 0px 14px 40px rgba(9,30,66,0.08); animation: popupShow 220ms ease-out;}
-        @keyframes popupShow { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: scale(1); } }
-        .skill-popup h2, .skill-popup h3 { color: #8B5E34; font-weight: 700; }
-        .skill-popup .left-box { background: #FFF9F4; border: 1px solid #E6D5C3; border-radius: 12px; padding: 18px; }
-        .skill-popup .preview-box { background: #FBF7F2; border: 1px solid #E6D5C3; border-radius: 12px; padding: 18px; }
-        .skill-popup input, .skill-popup select, .skill-popup textarea { background: #FFFFFF; border: 1px solid #C8B8A6; padding: 10px 12px; border-radius: 8px; width: 100%; outline: none; transition: 0.18s; }
-        .skill-popup input:focus, .skill-popup select:focus, .skill-popup textarea:focus { border-color: #B27744; box-shadow: 0 0 0 4px rgba(178,119,68,0.08); }
-        .btn-brown { background: #B27744 !important; color: white !important; padding: 10px 20px; border-radius: 8px; font-weight: 600; }
-        .btn-brown:hover { background: #8B5E34 !important; }
-        .btn-light-brown { background: #EFE3D8; color: #6C4A2F; padding: 10px 16px; border-radius: 8px; font-weight: 600; }
-        .btn-blue { background: #4A67FF; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; }
-        .btn-green { background: #2E8B57; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; }
-        .image-preview-box { border: 1px solid #D8C7B2; background: #FFF; border-radius: 10px; height: 170px; display:flex; align-items:center; justify-content:center; color:#A38D78; font-size:14px; }
-      `}</style>
-
-      <div className="flex items-center justify-between mb-6">
+    if (entry.TemplateType === "main") {
+      // parse comma separated
+      const topics = (entry.TemplateData || "")
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      return (
         <div>
-          <h2 className="text-2xl font-semibold text-[#B87C4C]">My Skills</h2>
-          <p className="text-sm text-gray-600">Manage your skills, certificates and topics PDFs</p>
+          <h3 className="text-lg font-semibold mt-2">Main Topics</h3>
+          <ul className="mt-2 list-none space-y-1">
+            {topics.length ? (
+              topics.map((t, i) => (
+                <li key={i} className="flex items-start">
+                  <span className="text-green-600 mr-2 mt-0.5">✓</span>
+                  <span className="text-gray-800">{t}</span>
+                </li>
+              ))
+            ) : (
+              <li className="text-sm text-gray-500 italic">No topics entered yet.</li>
+            )}
+          </ul>
         </div>
+      );
+    }
 
-        <button
-          onClick={openAddModal}
-          className="inline-flex items-center gap-2 bg-[#B87C4C] text-white px-4 py-2 rounded-md shadow hover:bg-[#8E5C32] transition"
-        >
-          <FiPlus /> Add Skill
-        </button>
-      </div>
-
-      {successMsg && (
-        <div className="mb-4 px-4 py-2 rounded-md bg-[#A8BBA3]/20 text-[#31513A] border border-[#A8BBA3]/60 text-sm">
-          {successMsg}
-        </div>
-      )}
-
-      {loading ? (
-        <p className="text-center text-gray-500">Loading...</p>
-      ) : skills.length === 0 ? (
-        <div className="flex flex-col items-center mt-10 opacity-80">
-          <img
-            alt="empty"
-            src="https://cdn-icons-png.flaticon.com/512/4072/4072183.png"
-            className="w-24 mb-4"
-          />
-          <p className="text-lg text-gray-600 italic">No skills added yet.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {skills.map((s) => (
-            <div
-              key={s._id}
-              className={`grid grid-cols-12 gap-6 items-center p-5 rounded-xl border shadow-sm transition transform hover:scale-[1.002] ${isUnavailable(s)
-                  ? "bg-[#E5DED3] border-[#C0A890]"
-                  : "bg-[#A8BBA3]/35 border-[#A8BBA3]"
-                }`}
-            >
-              <div className="col-span-1 flex items-center justify-center">
-                <div
-                  className={`w-12 h-12 rounded-lg flex items-center justify-center text-xl ${isUnavailable(s)
-                      ? "bg-gray-300 text-gray-700"
-                      : "bg-[#B87C4C]/15 text-[#B87C4C]"
-                    }`}
-                >
-                  📘
-                </div>
-              </div>
-
-              <div className="col-span-7 space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {s.SkillName || (s.SkillId && (s.SkillId.Name || s.SkillId.Name))}
-                      </h3>
-                      {s.CategoryName && (
-                        <span className="text-[11px] font-semibold text-[#B87C4C] bg-[#F7F4EA] px-2 py-0.5 rounded-full">
-                          {s.CategoryName}
-                        </span>
+    if (entry.TemplateType === "sub") {
+      // each line: Main - sub1, sub2
+      const lines = (entry.TemplateData || "")
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+      return (
+        <div>
+          <h3 className="text-lg font-semibold mt-2">Topics Breakdown</h3>
+          <div className="mt-2 space-y-3">
+            {lines.length ? (
+              lines.map((line, i) => {
+                const [main, subs] = line.split("-");
+                const subList = (subs || "")
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                return (
+                  <div key={i}>
+                    <div className="font-medium text-gray-900">• {main?.trim()}</div>
+                    <ul className="ml-6 mt-1 list-disc list-inside text-gray-700">
+                      {subList.length ? (
+                        subList.map((s, j) => <li key={j}>{s}</li>)
+                      ) : (
+                        <li className="text-sm text-gray-500 italic">No sub-topics</li>
                       )}
-                    </div>
-
-                    <p className="text-sm text-gray-700 mt-1">
-                      <span className="font-medium">Source:</span> {s.Source || "N/A"}
-                    </p>
+                    </ul>
                   </div>
-
-                  <div
-                    className={`text-sm font-semibold mt-1 px-3 py-1 rounded-full ${isUnavailable(s) ? "bg-gray-400 text-white" : "bg-[#B87C4C]/90 text-white"
-                      }`}
-                  >
-                    {isUnavailable(s) ? "Unavailable" : "Available"}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-4">
-                    <span className="w-32 text-sm font-medium text-gray-700">Certificate:</span>
-                    {s.CertificateURL ? (
-                      <a
-                        href={`${API_BASE}${s.CertificateURL}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-2 text-[#B87C4C] hover:text-[#8E5C32] transition text-sm"
-                      >
-                        <FiDownload /> View Certificate
-                      </a>
-                    ) : (
-                      <span className="text-sm text-red-600 flex items-center gap-2">
-                        <FiFileText /> Not uploaded
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <span className="w-32 text-sm font-medium text-gray-700">Topics PDF:</span>
-                    {s.ContentFileURL ? (
-                      <a
-                        href={`${API_BASE}${s.ContentFileURL}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-2 text-[#B87C4C] hover:text-[#8E5C32] transition text-sm"
-                      >
-                        <FiBookOpen /> View Topics PDF
-                      </a>
-                    ) : (
-                      <span className="text-sm text-gray-500 flex items-center gap-2">
-                        <FiBookOpen /> Not uploaded
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-span-4 flex justify-end gap-3">
-                {isUnavailable(s) ? (
-                  <button
-                    onClick={() => handleReactivate(s._id)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#A8BBA3]/25 text-[#31513A] border border-[#A8BBA3] rounded-md hover:bg-[#A8BBA3]/45 transition text-sm"
-                  >
-                    <FiRefreshCw /> Reactivate
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => openEditModal(s)}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-[#CBBFAE] rounded-md shadow hover:bg-[#F7F4EA] hover:border-[#B87C4C] transition text-sm"
-                    >
-                      <FiEdit /> Edit
-                    </button>
-
-                    <button
-                      onClick={() => handleDisable(s._id)}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 border border-red-300 rounded-md hover:bg-red-200 transition text-sm"
-                    >
-                      <FiTrash2 /> Disable
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {showModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          aria-modal="true"
-          role="dialog"
-          onClick={() => {
-            setShowModal(false);
-            setEditingSkill(null);
-          }}
-        >
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            aria-hidden="true"
-          />
-
-          <div
-            className="relative w-full max-w-4xl mx-4 transform transition-all duration-300 scale-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              className="bg-white rounded-2xl shadow-2xl border p-6 overflow-auto"
-              style={{ maxHeight: "90vh" }}
-            >
-              <div className="
-  rounded-t-2xl
-  px-6 py-5
-  shadow-md
-  border border-[#e8d8c8]
-  bg-gradient-to-r from-[#B17847] to-[#A66A3A]
-  text-white
-">
-                <h3 className="text-2xl font-bold">
-                  {modalMode === "edit" ? "Edit Skill" : "Add New Skill"}
-                </h3>
-                <p className="text-sm opacity-90 mt-1">
-                  Manage your skill details easily
-                </p>
-              </div>
-
-              {modalMode === "add" ? (
-                <div className="modal-content w-full" onClick={(e) => e.stopPropagation()}>
-                  <style>{`
-      .modal-content header, .modal-content .header, .modal-content .site-header, .modal-content .navbar, .modal-content .topbar, .modal-content footer, .modal-content .site-footer, .modal-content .app-footer { display: none !important; }
-      .modal-content .modal-inner { display: block; width: 100%; box-sizing: border-box; }
-      .modal-content .modal-inner img, .modal-content .modal-inner input, .modal-content .modal-inner select, .modal-content .modal-inner textarea, .modal-content .modal-inner button { box-sizing: border-box; }
-    `}</style>
-
-                  <div className="modal-inner">
-                    <AddSkill
-                      inline={true}
-                      userId={userId}
-                      onDone={async () => {
-                        setShowModal(false);
-                        await fetchSkills();
-                        setEditingSkill(null);
-                        showSuccess("Skill added!");
-                      }}
-                    />
-
-                    <div className="mt-4 flex justify-end gap-3">
-                      <button
-                        onClick={() => {
-                          setShowModal(false);
-                          setEditingSkill(null);
-                        }}
-                        className="px-4 py-2 rounded-md border bg-white hover:bg-gray-50"
-                      >
-                        Close
-                      </button>
-
-                      <button
-                        onClick={async () => {
-                          setShowModal(false);
-                          setEditingSkill(null);
-                          await fetchSkills();
-                          showSuccess("List refreshed");
-                        }}
-                        className="px-4 py-2 rounded-md bg-[#B87C4C] text-white hover:bg-[#8E5C32]"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {!editingSkill ? null : (
-                    <>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">
-                          Category
-                        </label>
-                        <select
-                          value={String(formData.CategoryId || "")}
-                          onChange={(e) => handleCategoryChange(e.target.value)}
-                          className="w-full border border-[#CBBFAE] px-3 py-2 rounded-md focus:ring-2 focus:ring-[#B87C4C]/30 focus:outline-none bg-white/80"
-                        >
-                          <option value="">Select Category</option>
-                          {categories.map((c) => {
-                            // normalize option value to prefer _id then CategoryId
-                            const optVal = String(c._id || c.CategoryId || "");
-                            return (
-                              <option key={optVal} value={optVal}>
-                                {c.CategoryName || c.name || "Unnamed Category"}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">
-                          Skill
-                        </label>
-                        <select
-                          value={String(formData.SkillId || "")}
-                          onChange={(e) => setFormData((p) => ({ ...p, SkillId: String(e.target.value) }))}
-                          className="w-full border border-[#CBBFAE] px-3 py-2 rounded-md focus:ring-2 focus:ring-[#B87C4C]/30 bg-white/80"
-                          required
-                        >
-                          <option value="">Select Skill</option>
-                          {skillsByCategory.map((sk) => (
-                            <option key={sk.id} value={sk.id}>
-                              {sk.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">
-                          Certificate Source
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Enter certificate source (optional)"
-                          value={formData.Source}
-                          onChange={(e) => setFormData((p) => ({ ...p, Source: e.target.value }))}
-                          className="w-full border border-[#CBBFAE] px-3 py-2 rounded-md focus:ring-2 focus:ring-[#B87C4C]/30 bg-white/80"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">
-                          Certificate (PDF)
-                        </label>
-                        <input
-                          type="file"
-                          accept="application/pdf"
-                          onChange={(e) => onCertificateChange(e.target.files[0] || null)}
-                          className="w-full border border-[#CBBFAE] px-3 py-2 rounded-md focus:ring-2 focus:ring-[#B87C4C]/30 bg-white/80"
-                        />
-                        {editingSkill && editingSkill.CertificateURL && (
-                          <p className="text-sm mt-1">
-                            Current: {" "}
-                            <a
-                              href={`${API_BASE}${editingSkill.CertificateURL}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[#B87C4C] hover:underline"
-                            >
-                              View
-                            </a>
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">
-                          New Topics PDF (optional)
-                        </label>
-                        <input
-                          type="file"
-                          accept="application/pdf"
-                          onChange={(e) => onContentFileChange(e.target.files[0] || null)}
-                          className="w-full border border-[#CBBFAE] px-3 py-2 rounded-md focus:ring-2 focus:ring-[#B87C4C]/30 bg-white/80"
-                        />
-                        {editingSkill && editingSkill.ContentFileURL && (
-                          <p className="text-sm mt-1">
-                            Current Topics PDF: {" "}
-                            <a
-                              href={`${API_BASE}${editingSkill.ContentFileURL}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[#B87C4C] hover:underline"
-                            >
-                              View
-                            </a>
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">
-                          Edit PDF Content
-                        </label>
-
-                        {loadingPdf ? (
-                          <p className="text-gray-500 text-sm">Loading PDF content...</p>
-                        ) : (
-                          <>
-                            <textarea
-                              className="w-full border border-[#CBBFAE] px-3 py-2 h-48 rounded-md bg-white/80"
-                              value={pdfText}
-                              onChange={(e) => setPdfText(e.target.value)}
-                            />
-
-                            <div className="mt-4 p-3 border bg-white rounded">
-                              <h4 className="text-md font-semibold text-gray-700">Live Preview</h4>
-                              <div className="text-sm text-gray-800 whitespace-pre-line mt-2">
-                                {pdfText || "Start typing to generate preview..."}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {error && <p className="text-red-600 text-sm">{error}</p>}
-
-                      <button
-                        type="submit"
-                        className="w-full py-3 text-lg font-semibold rounded-md bg-[#B87C4C] text-white hover:bg-[#8E5C32] transition"
-                      >
-                        Update Skill
-                      </button>
-                    </>
-                  )}
-                </form>
-              )}
-            </div>
+                );
+              })
+            ) : (
+              <div className="text-sm text-gray-500 italic">No topics entered yet.</div>
+            )}
           </div>
         </div>
-      )}
+      );
+    }
+
+    if (entry.TemplateType === "image") {
+      const imgSrc = imagePreviews[idx] || null;
+      return (
+        <div>
+          <h3 className="text-lg font-semibold mt-2">Image Preview</h3>
+          <div className="mt-3 mb-3">
+            {imgSrc ? (
+              <img src={imgSrc} alt="Template" className="max-w-full max-h-48 object-contain rounded-md border" />
+            ) : (
+              <div className="w-full h-44 flex items-center justify-center bg-gray-50 border rounded-md text-sm text-gray-500">
+                No image selected
+              </div>
+            )}
+          </div>
+          <h4 className="font-medium">Description</h4>
+          <p className="text-gray-700 mt-1 whitespace-pre-wrap">{entry.TemplateData || <span className="text-gray-400 italic">No description</span>}</p>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <>
+      <Header />
+      <div className="max-w-7xl mx-auto mt-8 px-4">
+        <h2 className="text-2xl font-bold mb-6">Add Skills</h2>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* LEFT: FORM */}
+          <div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {skillEntries.map((entry, index) => (
+                <div key={index} className="border p-4 rounded-lg space-y-3 relative bg-white">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-medium">Skill {index + 1}</h4>
+                    {index > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => removeSkillRow(index)}
+                        className="text-red-500 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  <select
+                    value={entry.CategoryId}
+                    onChange={(e) => handleCategoryChange(index, e.target.value)}
+                    className="w-full border px-3 py-2 rounded-lg mb-2"
+                    required
+                  >
+                    <option value="">-- Select Category --</option>
+                    {categories.map((c) => (
+                      <option key={c.CategoryId} value={c.CategoryId}>
+                        {c.CategoryName}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={entry.SkillId}
+                    onChange={(e) => handleSkillChange(index, e.target.value)}
+                    className="w-full border px-3 py-2 rounded-lg mb-2"
+                    required
+                    disabled={!entry.CategoryId}
+                  >
+                    <option value="">-- Select Skill --</option>
+                    {entry.Skills.map((s) => (
+                      <option key={s.SkillId} value={s.SkillId}>
+                        {s.Name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label className="text-sm font-semibold text-gray-700">
+                    Select Template for Content PDF <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={entry.TemplateType}
+                    onChange={(e) => handleTemplateTypeChange(index, e.target.value)}
+                    className="w-full border px-3 py-2 rounded-lg mb-2"
+                    required
+                  >
+                    <option value="">-- Select Template --</option>
+                    <option value="main">Main Topics Only</option>
+                    <option value="sub">Main Topics + Sub-topics</option>
+                    <option value="image">Image + Description</option>
+                  </select>
+
+                  {/* TEMPLATE FIELDS */}
+                  {entry.TemplateType === "main" && (
+                    <>
+                      <label className="text-sm font-semibold">Main Topics (comma separated)</label>
+                      <textarea
+                        className="border w-full p-3 rounded mb-2"
+                        style={{ minHeight: "180px" }}
+                        placeholder={`Enter main topics separated by commas. Example:\n\nIntroduction, Data Types, Joins, Functions`}
+                        value={entry.TemplateData || ""}
+                        onChange={(e) => handleTemplateDataChange(index, e.target.value)}
+                        required
+                      />
+                    </>
+                  )}
+
+                  {entry.TemplateType === "sub" && (
+                    <>
+                      <label className="text-sm font-semibold">Topics + Sub-topics (one per line)</label>
+                      <textarea
+                        className="border w-full p-3 rounded mb-2"
+                        style={{ minHeight: "220px" }}
+                        placeholder={`Enter each topic on new line in this format:\nMain Topic - Subtopic 1, Subtopic 2\n\nExample:\nIntroduction to MySQL - What is MySQL, Features, Use Cases\nDatabase Basics - DBMS Concepts, RDBMS, ACID Properties`}
+                        value={entry.TemplateData || ""}
+                        onChange={(e) => handleTemplateDataChange(index, e.target.value)}
+                        required
+                      />
+                    </>
+                  )}
+
+                  {entry.TemplateType === "image" && (
+                    <>
+                      <label className="text-sm font-semibold">Upload Image (required)</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        required
+                        onChange={(e) => handleTemplateImageChange(index, e.target.files[0])}
+                        className="border px-2 py-1 rounded w-full mb-2"
+                      />
+                      <label className="text-sm font-semibold">Image Description</label>
+                      <textarea
+                        className="border w-full p-3 rounded mb-2"
+                        style={{ minHeight: "180px" }}
+                        placeholder={`Describe what this image shows. Example:\nDiagram showing INNER JOIN between table A and B.`}
+                        value={entry.TemplateData || ""}
+                        onChange={(e) => handleTemplateDataChange(index, e.target.value)}
+                        required
+                      />
+                    </>
+                  )}
+
+                  <label className="text-sm font-semibold text-gray-700">Upload Certificate (Optional)</label>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    onChange={(e) => handleCertificateChange(index, e.target.files[0])}
+                    className="border px-2 py-1 rounded w-full mb-2"
+                    title="Upload your certificate (if you have one)"
+                  />
+
+                  <label className="text-sm font-semibold text-gray-700">Source (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Where did you learn this skill? (Optional)"
+                    value={entry.Source}
+                    onChange={(e) => handleSourceChange(index, e.target.value)}
+                    className="w-full border px-3 py-2 rounded-lg"
+                  />
+                </div>
+              ))}
+
+              <div className="flex justify-between items-center mt-4">
+                <button
+                  type="button"
+                  onClick={addSkillRow}
+                  className={`bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 ${
+                    skillEntries.length >= 5 ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                  disabled={skillEntries.length >= 5}
+                >
+                  + Add Another Skill
+                </button>
+
+                <button
+                  type="submit"
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                >
+                  Save Skills
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* RIGHT: LIVE PREVIEW */}
+          <div className="bg-white border rounded-lg p-4">
+            <div className="flex items-center justify-center mb-4">
+              {/* Logo (from uploaded path) */}
+              <img src={logoUrl} alt="SkillSwap Logo" className="h-16 object-contain" />
+            </div>
+
+            {/* If multiple entries show selector to preview each one */}
+            <PreviewPanel
+              entries={skillEntries}
+              categories={categories}
+              getCategoryName={getCategoryName}
+              getSkillNameFromRow={getSkillNameFromRow}
+              renderPreviewForEntry={renderPreviewForEntry}
+              imagePreviews={imagePreviews}
+            />
+          </div>
+        </div>
+      </div>
+      <Footer />
+    </>
+  );
+}
+
+// PreviewPanel component (keeps main component tidy)
+function PreviewPanel({ entries, categories, getCategoryName, getSkillNameFromRow, renderPreviewForEntry, imagePreviews }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    if (activeIndex >= entries.length) setActiveIndex(entries.length - 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries.length]);
+
+  const active = entries[activeIndex] || {};
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-3 overflow-x-auto">
+        {entries.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setActiveIndex(i)}
+            className={`px-3 py-1 rounded ${activeIndex === i ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700"}`}
+          >
+            Preview {i + 1}
+          </button>
+        ))}
+      </div>
+
+      <div className="p-3 bg-gray-50 rounded">
+        <div className="mb-2">
+          <div className="text-xs text-gray-500">Category</div>
+          <div className="font-medium">{getCategoryName(active.CategoryId) || <span className="text-gray-400">Not selected</span>}</div>
+        </div>
+
+        <div className="mb-3">
+          <div className="text-xs text-gray-500">Skill</div>
+          <div className="font-medium">{getSkillNameFromRow(active) || <span className="text-gray-400">Not selected</span>}</div>
+        </div>
+
+        <div className="border-t pt-3">
+          {renderPreviewForEntry(active, activeIndex)}
+        </div>
+
+        <div className="mt-4 text-xs text-gray-400">
+          Preview updates live as you type. This is an HTML preview — final PDF will be generated on submit.
+        </div>
+      </div>
     </div>
   );
 }
+
+export default AddSkill;
