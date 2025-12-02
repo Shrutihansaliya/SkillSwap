@@ -59,16 +59,37 @@ const storage = multer.diskStorage({
 /* -----------------------------------------------------------
    🔥 PDF ONLY VALIDATION
 ------------------------------------------------------------ */
+// routes/mySkillRoutes.js  — replace current upload = multer({...}) block with:
+
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB per file
   fileFilter: (req, file, cb) => {
-    if (file.mimetype !== "application/pdf") {
-      return cb(new Error("Only PDF files are allowed"));
+    try {
+      if (file.fieldname === "Certificate" || file.fieldname === "ContentFile") {
+        // allow PDFs for these fields
+        if (file.mimetype !== "application/pdf") {
+          return cb(new Error("Only PDF files are allowed for Certificate / ContentFile"), false);
+        }
+        return cb(null, true);
+      }
+
+      if (file.fieldname === "TemplateImage") {
+        // allow images for template image field
+        if (!file.mimetype.startsWith("image/")) {
+          return cb(new Error("TemplateImage must be an image (png/jpg/jpeg/etc.)"), false);
+        }
+        return cb(null, true);
+      }
+
+      // default: reject unknown fields explicitly
+      return cb(new Error("Unexpected file field"), false);
+    } catch (e) {
+      return cb(e, false);
     }
-    cb(null, true);
   },
 });
+
 
 /* -----------------------------------------------------------
    ROUTES
@@ -83,6 +104,7 @@ router.post(
   upload.fields([
     { name: "Certificate", maxCount: 1 },
     { name: "ContentFile", maxCount: 1 },
+     { name: "TemplateImage", maxCount: 1 }, 
   ]),
   addUserSkill
 );
@@ -94,6 +116,7 @@ router.put(
   upload.fields([
     { name: "Certificate", maxCount: 1 },
     { name: "ContentFile", maxCount: 1 },
+     { name: "TemplateImage", maxCount: 1 }, 
   ]),
   updateUserSkill
 );
