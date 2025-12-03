@@ -41,7 +41,7 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import adminSwapRoutes from "./routes/adminSwapRoutes.js";
 // 🔹 NEW: Call routes (video call history)
 import callRoutes from "./routes/callRoutes.js";
-
+import skillRequestRoutes from "./routes/skillRequestRoutes.js";
 // report controllers + middlewares (inlined route below)
 import {
   createReport,
@@ -120,7 +120,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/overview", overviewRoutes);
 app.use("/api/verify-certificate", verifyCertificateRoutes);
 app.use("/api/videos", videoRoutes);
-
+app.use("/api/skill-requests", skillRequestRoutes);
 // 🔹 NEW: Call routes (video call history APIs)
 app.use("/api/calls", callRoutes);
 

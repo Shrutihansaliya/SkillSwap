@@ -1,5 +1,5 @@
 // Client/src/pages/Admin/AdminReports.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { FaSearch, FaTrash } from "react-icons/fa";
 import { toast } from "react-toastify"; // ✅ ADDED
@@ -44,7 +44,8 @@ const prettyLabel = (raw) => {
 };
 
 export default function AdminReports() {
-  const [reports, setReports] = useState([]);
+  const [reports, setReports] = useState([]); // canonical list from server
+  const [filteredReports, setFilteredReports] = useState([]); // client-side filtered view
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(12);
@@ -57,6 +58,11 @@ export default function AdminReports() {
   const [sendEmail, setSendEmail] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
+
+  // debounce refs / config
+  const typingTimerRef = useRef(null);
+  const DEBOUNCE_DELAY = 300; // ms - change to 500-700 to reduce requests
+  const MIN_SEARCH_CHARS = 1; // triggers search even for 1 char
 
   const asString = (v) => {
     if (v === null || v === undefined) return "";
@@ -81,6 +87,22 @@ export default function AdminReports() {
     return String(v);
   };
 
+  // helper: does report match query (search multiple fields)
+  const matchesQuery = (r, query) => {
+    if (!query || query.trim() === "") return true;
+    const ql = query.trim().toLowerCase();
+    // fields to search: reason, description, reporter username/email, reportedUser username/email, maybe actionTaken/status
+    const fields = [
+      asString(r.reason),
+      asString(r.description),
+      asString(r.reporter?.Username ?? r.reporter?.email ?? r.reporter),
+      asString(r.reportedUser?.Username ?? r.reportedUser?.email ?? r.reportedUser),
+      asString(r.actionTaken),
+      asString(r.status),
+    ];
+    return fields.some((f) => f.toLowerCase().includes(ql));
+  };
+
   const load = async (p = 1, statusParam = null) => {
     try {
       setLoading(true);
@@ -95,7 +117,7 @@ export default function AdminReports() {
       });
 
       if (res?.data?.success === false) {
-        toast.error(res.data.message || "Failed to load reports"); // ✅ replaced alert
+        toast.error(res.data.message || "Failed to load reports");
         setReports([]);
         setTotal(0);
         return;
@@ -124,7 +146,7 @@ export default function AdminReports() {
 
       setPage(p);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to load reports"); // ✅ toast
+      toast.error(err?.response?.data?.message || "Failed to load reports");
       setReports([]);
       setTotal(0);
     } finally {
@@ -134,6 +156,48 @@ export default function AdminReports() {
 
   useEffect(() => {
     load(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // whenever canonical reports or q/statusFilter changes, compute client-side filtered list
+  useEffect(() => {
+    const list = reports.filter((r) => {
+      // apply statusFilter first if set (client-side)
+      if (statusFilter) {
+        const st = normalizeStatusKey(r.status ?? r.Status ?? "");
+        if (st !== normalizeStatusKey(statusFilter)) return false;
+      }
+      // then apply q text match
+      return matchesQuery(r, q);
+    });
+    setFilteredReports(list);
+  }, [reports, q, statusFilter]);
+
+  // handle search input with debounce: update q (client-filter) immediately, and also debounce server load(1)
+  const handleSearchChange = (val) => {
+    setQ(val);
+
+    // clear previous timer
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+
+    // schedule new server search after debounce (so backend also filters & page results)
+    typingTimerRef.current = setTimeout(() => {
+      load(1);
+      typingTimerRef.current = null;
+    }, DEBOUNCE_DELAY);
+  };
+
+  // cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+    };
   }, []);
 
   const prepareReportedName = (r) => {
@@ -179,7 +243,7 @@ export default function AdminReports() {
       });
 
       if (res?.data?.success === false) {
-        toast.error(res.data.message || "Action failed"); // ✅
+        toast.error(res.data.message || "Action failed");
         return false;
       }
 
@@ -197,12 +261,12 @@ export default function AdminReports() {
 
       if (doReload) await load(page);
 
-      toast.success("Action completed"); // ✅
+      toast.success("Action completed");
       return true;
     } catch (err) {
       const serverMsg =
         err?.response?.data?.message || err.message || "Action failed";
-      toast.error(serverMsg); // ✅
+      toast.error(serverMsg);
       return false;
     } finally {
       setActionLoading(false);
@@ -268,9 +332,9 @@ export default function AdminReports() {
         );
 
         if (res?.data?.success === false) {
-          toast.error(res.data.message || "Delete failed"); // ✅
+          toast.error(res.data.message || "Delete failed");
         } else {
-          toast.success("Report deleted"); // ✅
+          toast.success("Report deleted");
           setReports((prev) =>
             prev.filter((it) => asString(it._id) !== asString(r._id))
           );
@@ -279,14 +343,15 @@ export default function AdminReports() {
             closeDetails();
         }
       } catch (err) {
-        toast.error(err?.response?.data?.message || "Delete failed"); // ✅
+        toast.error(err?.response?.data?.message || "Delete failed");
       } finally {
         setActionLoading(false);
       }
     })();
   };
 
-  const totalPages = Math.max(1, Math.ceil((total || reports.length) / limit));
+  // total pages based on client-side filtered list
+  const totalPages = Math.max(1, Math.ceil((total || filteredReports.length) / limit));
 
   const safeDate = (d) => {
     try {
@@ -299,6 +364,12 @@ export default function AdminReports() {
     }
   };
 
+  // helper to render current page slice of filteredReports
+  const pagedReports = () => {
+    const start = (page - 1) * limit;
+    return filteredReports.slice(start, start + limit);
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* EVERYTHING BELOW IS UNCHANGED */}
@@ -309,12 +380,13 @@ export default function AdminReports() {
         <h1 className="text-2xl font-bold text-gray-800">Complaints from Members</h1>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center bg-white rounded-md shadow px-2">
+          {/* LIVE SEARCH (debounced + instant local filter) */}
+          <div className="flex items-center bg-white rounded-md shadow px-2 border border-gray-300">
             <input
-              className="px-3 py-2 outline-none w-64"
+              className="px-3 py-2 outline-none w-64 text-gray-800 bg-white placeholder-gray-400"
               placeholder="Search reason or description..."
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && load(1)}
             />
             <button
@@ -323,6 +395,11 @@ export default function AdminReports() {
             >
               <FaSearch />
             </button>
+
+            {/* live indicator */}
+            <div className="ml-3 text-xs text-gray-500">
+              {loading ? "Searching..." : q.length >= 1 ? `Showing ${filteredReports.length} result(s)` : `Showing ${filteredReports.length} record(s)`}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -331,6 +408,7 @@ export default function AdminReports() {
               onChange={(e) => {
                 const v = e.target.value;
                 setStatusFilter(v);
+                // we still call server to get filtered list (page reset)
                 load(1, v);
               }}
               className="px-3 py-2 rounded-md border"
@@ -345,6 +423,7 @@ export default function AdminReports() {
             <button
               onClick={() => {
                 setStatusFilter("");
+                setQ("");
                 load(1, "");
               }}
               className="px-3 py-2 rounded-md border bg-white hover:bg-gray-50 text-sm"
@@ -377,22 +456,23 @@ export default function AdminReports() {
                   Loading...
                 </td>
               </tr>
-            ) : reports.length === 0 ? (
+            ) : filteredReports.length === 0 ? (
               <tr>
                 <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                  No Complaints yet.
+                  No Complaints found.
                 </td>
               </tr>
             ) : (
-              reports.map((r, i) => {
-                const rowKey = asString(r._id) || i;
+              pagedReports().map((r, i) => {
+                const globalIndex = (page - 1) * limit + i;
+                const rowKey = asString(r._id) || globalIndex;
                 const rawStatus = r.status ?? r.Status ?? "";
                 const st = normalizeStatusKey(rawStatus);
 
                 return (
                   <tr key={rowKey} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-600">
-                      {(page - 1) * limit + i + 1}
+                      {globalIndex + 1}
                     </td>
 
                     <td className="px-4 py-3 text-sm text-gray-700">
@@ -481,7 +561,9 @@ export default function AdminReports() {
 
         <div className="flex gap-2">
           <button
-            onClick={() => load(Math.max(1, page - 1))}
+            onClick={() => {
+              setPage((p) => Math.max(1, p - 1));
+            }}
             disabled={page <= 1}
             className="px-3 py-1 rounded border"
           >
@@ -489,7 +571,9 @@ export default function AdminReports() {
           </button>
 
           <button
-            onClick={() => load(Math.min(totalPages, page + 1))}
+            onClick={() => {
+              setPage((p) => Math.min(totalPages, p + 1));
+            }}
             disabled={page >= totalPages}
             className="px-3 py-1 rounded border"
           >
