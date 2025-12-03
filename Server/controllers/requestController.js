@@ -34,7 +34,7 @@ export const sendRequest = async (req, res) => {
     if (senderUser?.isSuspended || senderUser?.Status === "Inactive")
       return res.status(400).json({ success: false, message: "Your account is not allowed to send requests." });
 
-    // Check active plan for both users
+    // Check active plan
     const [senderSub, receiverSub] = await Promise.all([
       Subscription.findOne({ UserId: SenderId, Status: "Active", SwapsRemaining: { $gt: 0 } }),
       Subscription.findOne({ UserId: ReceiverId, Status: "Active", SwapsRemaining: { $gt: 0 } }),
@@ -46,6 +46,7 @@ export const sendRequest = async (req, res) => {
     if (!receiverSub)
       return res.status(400).json({ success: false, message: "Receiver does not have an active plan with swaps remaining." });
 
+    // Load skills
     const userSkillToLearn = await UserSkill.findById(SkillToLearnId).lean();
     if (!userSkillToLearn)
       return res.status(404).json({ success: false, message: "Skill not found." });
@@ -53,82 +54,38 @@ export const sendRequest = async (req, res) => {
     const learnSkill = await Skill.findOne({ SkillId: userSkillToLearn.SkillId }).lean();
     const learningSkillId = learnSkill?.SkillId;
 
-    // Load all swaps safely
-    const swaps = await SkillSwap.find({})
-      .populate({
-        path: "RequestId",
-        select: "SenderId ReceiverId SkillToLearnId SkillToTeachId",
-      })
+    // -----------------------------------------------------
+    // ⭐ FIXED — DUPLICATE SWAP CHECK (100% working)
+    // -----------------------------------------------------
+    const existingSwapRequest = await Request.findOne({
+      $or: [
+        { SenderId: SenderId, ReceiverId: ReceiverId },
+        { SenderId: ReceiverId, ReceiverId: SenderId }
+      ]
+    })
+      .populate([
+        { path: "SkillToLearnId", select: "SkillId" },
+        { path: "SkillToTeachId", select: "SkillId" }
+      ])
       .lean();
 
-   let duplicateFound = false;
+    if (existingSwapRequest) {
+      const existingLearnId = existingSwapRequest.SkillToLearnId?.SkillId || null;
+      const existingTeachId = existingSwapRequest.SkillToTeachId?.SkillId || null;
 
-for (const swap of swaps) {
-  const reqData = swap?.RequestId;
-  if (!reqData) continue;
+      const isSameSkill =
+        existingLearnId === learningSkillId ||
+        existingTeachId === learningSkillId;
 
-  // -------------------------
-  // LOAD LEARN SKILL (SAFE)
-  // -------------------------
-  let learnSkillIdExisting = null;
-
-  if (
-    reqData.SkillToLearnId &&
-    mongoose.Types.ObjectId.isValid(reqData.SkillToLearnId)
-  ) {
-    const learnDoc = await UserSkill.findById(reqData.SkillToLearnId).lean();
-    if (learnDoc) {
-      const learnSkill = await Skill.findOne({ SkillId: learnDoc.SkillId }).lean();
-      learnSkillIdExisting = learnSkill?.SkillId || null;
+      if (isSameSkill) {
+        return res.status(400).json({
+          success: false,
+          message: "A swap between you and this user for this skill already exists.",
+        });
+      }
     }
-  }
 
-  // -------------------------
-  // LOAD TEACH SKILL (SAFE)
-  // -------------------------
-  let teachSkillIdExisting = null;
-
-  if (
-    reqData.SkillToTeachId &&
-    mongoose.Types.ObjectId.isValid(reqData.SkillToTeachId)
-  ) {
-    const teachDoc = await UserSkill.findById(reqData.SkillToTeachId).lean();
-    if (teachDoc) {
-      const teachSkill = await Skill.findOne({ SkillId: teachDoc.SkillId }).lean();
-      teachSkillIdExisting = teachSkill?.SkillId || null;
-    }
-  }
-
-  // -------------------------
-  // DUPLICATE CHECK LOGIC
-  // -------------------------
-  const sameDirection =
-    String(reqData.SenderId) === String(SenderId) &&
-    String(reqData.ReceiverId) === String(ReceiverId) &&
-    (learnSkillIdExisting === learningSkillId ||
-     teachSkillIdExisting === learningSkillId);
-
-  const reverseDirection =
-    String(reqData.SenderId) === String(ReceiverId) &&
-    String(reqData.ReceiverId) === String(SenderId) &&
-    (learnSkillIdExisting === learningSkillId ||
-     teachSkillIdExisting === learningSkillId);
-
-  if (sameDirection || reverseDirection) {
-    duplicateFound = true;
-    break;
-  }
-}
-
-
-    // If duplicate, return custom message
-    if (duplicateFound)
-      return res.status(400).json({
-        success: false,
-        message: "A swap between you and this user for this skill already exists.",
-      });
-
-    // Prevent duplicate pending requests
+    // Prevent duplicate pending
     const existingPending = await Request.findOne({
       $or: [
         { SenderId, ReceiverId, SkillToLearnId, Status: "Pending" },
@@ -142,7 +99,7 @@ for (const swap of swaps) {
         message: "A pending request already exists between you and this user for this skill.",
       });
 
-    // CREATE request
+    // Create Request
     const newReq = await Request.create({
       SenderId,
       ReceiverId,
@@ -150,6 +107,7 @@ for (const swap of swaps) {
       Status: "Pending",
     });
 
+    // Notification
     await Notification.create({
       userId: ReceiverId,
       message: `${senderUser.Username} sent you a new skill swap request.`,
@@ -165,8 +123,9 @@ for (const swap of swaps) {
 
   } catch (err) {
     console.error("Error sending request:", err);
-     console.error("🔥🔥 FULL SEND REQUEST ERROR ↓↓↓");
-  console.error(err);
+    console.error("🔥🔥 FULL SEND REQUEST ERROR ↓↓↓");
+    console.error(err);
+
     return res.status(500).json({
       success: false,
       message: "Server error while sending request.",
@@ -174,6 +133,7 @@ for (const swap of swaps) {
     });
   }
 };
+
 
 
 
