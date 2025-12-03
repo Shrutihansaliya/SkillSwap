@@ -148,8 +148,7 @@ function Dashboard() {
         min-h-screen w-full 
         flex 
         font-sans 
-        bg-gradient-to-br 
-        from-[#F7F4EA] via-[#A8BBA3] to-[#F7F4EA]
+       
       "
     >
       {/* Sidebar */}

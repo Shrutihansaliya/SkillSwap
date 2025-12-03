@@ -51,9 +51,9 @@ function Notifications({ userId }) {
   return (
     <div
       className="min-h-screen py-10 px-4 sm:px-6 
-      bg-gradient-to-br from-[#F7F4EA] via-[#A8BBA3] to-[#F7F4EA]"
+      "
     >
-      <div className="max-w-3xl mx-auto bg-[#F7F4EA]/95 rounded-3xl shadow-2xl p-6 sm:p-8 border border-[#A8BBA3]/70">
+      <div className="max-w-3xl mx-auto bg-gradient-to-br from-[#F8F5F0] via-[#E8F0E3] to-[#F8F5F0] rounded-3xl shadow-2xl p-6 sm:p-8 border border-[#A8BBA3]/70">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
@@ -65,13 +65,17 @@ function Notifications({ userId }) {
             </span>
           </h1>
 
-          <button
-            onClick={() => navigate("/dashboard?tab=overview")}
-            className="flex items-center text-xs sm:text-sm text-[#8E5C32] hover:text-[#5E3D21] gap-1 px-3 py-1.5 rounded-full border border-[#CBBFAE] bg-white/70 hover:bg-[#F0E2D2] transition-all"
-          >
-            <FiArrowLeft className="text-sm" />
-            Back to Dashboard
-          </button>
+         <button
+  onClick={() => navigate("/dashboard?tab=overview")}
+  className="flex items-center text-xs sm:text-sm text-[#8E5C32] hover:text-[#5E3D21] gap-1 px-3 py-1.5 rounded-full border border-[#CBBFAE] bg-white/70 hover:bg-[#F0E2D2] transition-all"
+>
+  <img 
+    src="/backimg.png" 
+    alt="Back to Dashboard"
+    className="h-8 w-auto"
+  />
+  {/* <span>Back to Dashboard</span> */}
+</button>
         </div>
 
         {/* Notifications List */}

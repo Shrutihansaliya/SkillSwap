@@ -120,7 +120,7 @@ function PurchaseSubscription({ userId }) {
   return (
     <div
       className="p-6 sm:p-10 min-h-[75vh] rounded-3xl border border-[#A8BBA3]/70
-      bg-gradient-to-br from-[#F7F4EA] via-[#A8BBA3] to-[#F7F4EA]"
+      "
     >
       {/* 🌿 Header row with search box */}
       <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-4 md:gap-0">

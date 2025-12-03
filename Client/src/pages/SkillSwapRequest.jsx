@@ -238,7 +238,7 @@ useEffect(() => {
     typeof url === "string" && url.toLowerCase().endsWith(".pdf");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F7F4EA] via-[#A8BBA3] to-[#F7F4EA] p-6">
+    <div className="min-h-screen  bg-gradient-to-br from-[#F8F5F0] via-[#E8F0E3] to-[#F8F5F0]  p-6">
       
       {/* ⭐ HEADER SECTION */}
       <div className="max-w-6xl mx-auto mb-6">

@@ -125,11 +125,11 @@ const Profile = () => {
   return (
     <div
       className="min-h-screen flex justify-center items-center 
-                 bg-gradient-to-br from-[#F7F4EA] via-[#A8BBA3] to-[#F7F4EA] 
+                 
                  px-3 py-6"
     >
       <div
-        className="w-full max-w-3xl backdrop-blur-lg bg-[#FDFCF8]/95 
+        className="w-full max-w-3xl backdrop-blur-lg bg-gradient-to-br from-[#F8F5F0] via-[#E8F0E3] to-[#F8F5F0]
                    rounded-2xl shadow-xl border border-[#CBBFAE] 
                    p-6 md:p-8 transition-all hover:shadow-2xl"
       >

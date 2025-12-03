@@ -1020,6 +1020,169 @@ export const getPdfContent = async (req, res) => {
   }
 };
 
+// export const updateUserSkill = async (req, res) => {
+//   try {
+//     console.log("updateUserSkill called:", {
+//       params: req.params,
+//       body: req.body,
+//       filesKeys: req.files ? Object.keys(req.files) : null,
+//       filesPreview: req.files
+//         ? Object.fromEntries(
+//             Object.entries(req.files).map(([k, v]) => [
+//               k,
+//               v && v[0] ? { originalname: v[0].originalname, filename: v[0].filename, path: v[0].path, size: v[0].size } : null,
+//             ])
+//           )
+//         : {},
+//     });
+
+//     const { skillId } = req.params;
+//     const { Source, EditedText, SkillId: incomingSkillId } = req.body;
+
+//     const skill = await UserSkill.findById(skillId);
+//     if (!skill) return res.status(404).json({ success: false, message: "Skill not found" });
+
+//     // simple fields
+//     if (Source !== undefined) skill.Source = Source === "" ? null : Source;
+//     if (incomingSkillId !== undefined && incomingSkillId !== "") {
+//       const parsed = Number(incomingSkillId);
+//       skill.SkillId = Number.isFinite(parsed) ? parsed : incomingSkillId;
+//     }
+
+//     // Certificate file uploaded -> replace
+//     if (req.files?.Certificate?.[0]) {
+//       try {
+//         if (skill.CertificateURL) {
+//           const oldCertRel = skill.CertificateURL.replace(/^\//, "");
+//           const oldCertPath = path.join(process.cwd(), oldCertRel);
+//           if (fs.existsSync(oldCertPath)) fs.unlinkSync(oldCertPath);
+//         }
+//       } catch (e) {
+//         console.warn("Could not remove old certificate:", e && e.message ? e.message : e);
+//       }
+
+//       const certFile = req.files.Certificate[0];
+//       skill.CertificateURL = `/uploads/certificates/${certFile.filename}`;
+//       skill.CertificateStatus = "Pending";
+//     }
+
+//     // If user uploaded a full PDF (ContentFile), replace existing content file with uploaded one.
+//     if (req.files?.ContentFile?.[0]) {
+//       try {
+//         if (skill.ContentFileURL) {
+//           const oldRel = skill.ContentFileURL.replace(/^\//, "");
+//           const oldPath = path.join(process.cwd(), oldRel);
+//           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+//         }
+//       } catch (e) {
+//         console.warn("Could not remove old content file:", e && e.message ? e.message : e);
+//       }
+
+//       const contentFile = req.files.ContentFile[0];
+//       skill.ContentFileURL = `/uploads/contentfiles/${contentFile.filename}`;
+//       // Note: we do NOT regenerate PDF here because user uploaded final PDF directly.
+//     }
+
+//     // -------------------------
+//     // Decide whether to regenerate PDF from EditedText / TemplateType / TemplateImage
+//     // -------------------------
+//     const templateTypeFromBody = (req.body && req.body.TemplateType) ? String(req.body.TemplateType).trim() : "";
+//     const text = String(EditedText || "").trim();
+
+//     // Prefer explicit template type from frontend; fall back to heuristics
+//     let templateType = "main";
+//     if (templateTypeFromBody) {
+//       templateType = templateTypeFromBody; // trusted value (main|sub|image|plain)
+//     } else {
+//       if (text.includes("-") && text.includes(",")) templateType = "sub";
+//       else if (text.includes("✓")) templateType = "main";
+//       else if (!text.includes(",") && !text.includes("-")) templateType = "plain";
+//       else templateType = "main";
+//     }
+
+//     // Resolve template image path (if uploaded)
+//     const templateImgFile = req.files?.TemplateImage?.[0] || null;
+//     let templateImagePath = null;
+//     if (templateImgFile) {
+//       // prefer multer-provided path if present
+//       if (templateImgFile.path && typeof templateImgFile.path === "string" && fs.existsSync(templateImgFile.path)) {
+//         templateImagePath = templateImgFile.path;
+//       } else {
+//         // fallback candidate in uploads/contentfiles
+//         const candidate = path.join(process.cwd(), "uploads", "contentfiles", templateImgFile.filename || "");
+//         if (candidate && fs.existsSync(candidate)) templateImagePath = candidate;
+//         else {
+//           // last-ditch candidate: file name at project root
+//           const alt = path.join(process.cwd(), templateImgFile.filename || "");
+//           if (fs.existsSync(alt)) templateImagePath = alt;
+//         }
+//       }
+//     }
+
+//     console.log("Resolved template info:", {
+//       templateTypeFromBody,
+//       textPreview: text.slice(0, 120),
+//       resolvedTemplateType: templateType,
+//       templateImagePath,
+//     });
+
+//     // Only regenerate when there is EditedText (or when template is image and we have something to render)
+//     const shouldGenerate =
+//       (text && text.trim()) ||
+//       (templateType === "image" && (templateImagePath || text.trim()));
+
+//     if (shouldGenerate) {
+//       // try to find related Skill and Category docs for title/header in PDF
+//       const skillDoc = await Skill.findOne({ SkillId: skill.SkillId });
+//       const categoryDoc = skillDoc ? await Category.findOne({ CategoryId: skillDoc.CategoryId }) : null;
+
+//       // delete old content file only because we will create a new one
+//       try {
+//         if (skill.ContentFileURL) {
+//           const oldRel = skill.ContentFileURL.replace(/^\//, "");
+//           const oldPath = path.join(process.cwd(), oldRel);
+//           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+//         }
+//       } catch (e) {
+//         console.warn("Could not remove old autogenerated content file:", e && e.message ? e.message : e);
+//       }
+
+//       const fileName = `content_${skill.UserId}_${Date.now()}.pdf`;
+//       const outputPdfPath = path.join("uploads", "contentfiles", fileName);
+
+//       try {
+//         await generatePdfForSkill({
+//           outputPdfPath,
+//           logoPath: path.join(process.cwd(), "uploads", "logo.png"),
+//           categoryName: categoryDoc?.CategoryName || "",
+//           skillName: skillDoc?.Name || "",
+//           templateType,
+//           templateData: text,
+//           templateImagePath,
+//         });
+//       } catch (genErr) {
+//         console.error("generatePdfForSkill failed:", genErr && (genErr.stack || genErr.message || genErr));
+//         return res.status(500).json({
+//           success: false,
+//           message: "Failed to generate content PDF",
+//           error: String(genErr && (genErr.message || genErr)),
+//         });
+//       }
+
+//       skill.ContentFileURL = `/uploads/contentfiles/${fileName}`;
+//     } else {
+//       console.log("No EditedText/template data to generate PDF. Keeping existing ContentFileURL.");
+//     }
+
+//     await skill.save();
+
+//     console.log("updateUserSkill finished for:", skillId);
+//     return res.json({ success: true, message: "Skill updated", data: skill });
+//   } catch (err) {
+//     console.error("UpdateSkill Error:", err && (err.stack || err.message || err));
+//     return res.status(500).json({ success: false, message: err.message || "Server error" });
+//   }
+// };
 export const updateUserSkill = async (req, res) => {
   try {
     console.log("updateUserSkill called:", {
@@ -1049,7 +1212,9 @@ export const updateUserSkill = async (req, res) => {
       skill.SkillId = Number.isFinite(parsed) ? parsed : incomingSkillId;
     }
 
-    // Certificate file uploaded -> replace
+    /* ----------------------------------------------------------
+       DELETE OLD CERTIFICATE (if new uploaded)
+    ---------------------------------------------------------- */
     if (req.files?.Certificate?.[0]) {
       try {
         if (skill.CertificateURL) {
@@ -1058,7 +1223,7 @@ export const updateUserSkill = async (req, res) => {
           if (fs.existsSync(oldCertPath)) fs.unlinkSync(oldCertPath);
         }
       } catch (e) {
-        console.warn("Could not remove old certificate:", e && e.message ? e.message : e);
+        console.warn("Could not remove old certificate:", e.message);
       }
 
       const certFile = req.files.Certificate[0];
@@ -1066,7 +1231,9 @@ export const updateUserSkill = async (req, res) => {
       skill.CertificateStatus = "Pending";
     }
 
-    // If user uploaded a full PDF (ContentFile), replace existing content file with uploaded one.
+    /* ----------------------------------------------------------
+       DELETE OLD CONTENT FILE (if new uploaded)
+    ---------------------------------------------------------- */
     if (req.files?.ContentFile?.[0]) {
       try {
         if (skill.ContentFileURL) {
@@ -1075,68 +1242,58 @@ export const updateUserSkill = async (req, res) => {
           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
         }
       } catch (e) {
-        console.warn("Could not remove old content file:", e && e.message ? e.message : e);
+        console.warn("Could not remove old content file:", e.message);
       }
 
       const contentFile = req.files.ContentFile[0];
       skill.ContentFileURL = `/uploads/contentfiles/${contentFile.filename}`;
-      // Note: we do NOT regenerate PDF here because user uploaded final PDF directly.
     }
 
-    // -------------------------
-    // Decide whether to regenerate PDF from EditedText / TemplateType / TemplateImage
-    // -------------------------
-    const templateTypeFromBody = (req.body && req.body.TemplateType) ? String(req.body.TemplateType).trim() : "";
+    /* ----------------------------------------------------------
+       ⭐ NEW FIX — DELETE OLD TEMPLATE IMAGE WHEN UPLOADING NEW ONE
+    ---------------------------------------------------------- */
+    if (req.files?.TemplateImage?.[0]) {
+      try {
+        if (skill.TemplateImageURL) {
+          const oldImgRel = skill.TemplateImageURL.replace(/^\//, "");
+          const oldImgPath = path.join(process.cwd(), oldImgRel);
+          if (fs.existsSync(oldImgPath)) fs.unlinkSync(oldImgPath);
+        }
+      } catch (e) {
+        console.warn("Could not remove old template image:", e.message);
+      }
+
+      const imgFile = req.files.TemplateImage[0];
+      skill.TemplateImageURL = `/uploads/templateimages/${imgFile.filename}`;
+    }
+
+    /* ----------------------------------------------------------
+       Decide whether to regenerate PDF
+    ---------------------------------------------------------- */
+    const templateTypeFromBody = req.body?.TemplateType ? String(req.body.TemplateType).trim() : "";
     const text = String(EditedText || "").trim();
 
-    // Prefer explicit template type from frontend; fall back to heuristics
     let templateType = "main";
-    if (templateTypeFromBody) {
-      templateType = templateTypeFromBody; // trusted value (main|sub|image|plain)
-    } else {
+    if (templateTypeFromBody) templateType = templateTypeFromBody;
+    else {
       if (text.includes("-") && text.includes(",")) templateType = "sub";
       else if (text.includes("✓")) templateType = "main";
       else if (!text.includes(",") && !text.includes("-")) templateType = "plain";
-      else templateType = "main";
     }
 
-    // Resolve template image path (if uploaded)
+    // Resolve template image for regeneration
     const templateImgFile = req.files?.TemplateImage?.[0] || null;
-    let templateImagePath = null;
-    if (templateImgFile) {
-      // prefer multer-provided path if present
-      if (templateImgFile.path && typeof templateImgFile.path === "string" && fs.existsSync(templateImgFile.path)) {
-        templateImagePath = templateImgFile.path;
-      } else {
-        // fallback candidate in uploads/contentfiles
-        const candidate = path.join(process.cwd(), "uploads", "contentfiles", templateImgFile.filename || "");
-        if (candidate && fs.existsSync(candidate)) templateImagePath = candidate;
-        else {
-          // last-ditch candidate: file name at project root
-          const alt = path.join(process.cwd(), templateImgFile.filename || "");
-          if (fs.existsSync(alt)) templateImagePath = alt;
-        }
-      }
-    }
+    let templateImagePath = templateImgFile?.path || null;
 
-    console.log("Resolved template info:", {
-      templateTypeFromBody,
-      textPreview: text.slice(0, 120),
-      resolvedTemplateType: templateType,
-      templateImagePath,
-    });
-
-    // Only regenerate when there is EditedText (or when template is image and we have something to render)
     const shouldGenerate =
       (text && text.trim()) ||
       (templateType === "image" && (templateImagePath || text.trim()));
 
     if (shouldGenerate) {
-      // try to find related Skill and Category docs for title/header in PDF
       const skillDoc = await Skill.findOne({ SkillId: skill.SkillId });
       const categoryDoc = skillDoc ? await Category.findOne({ CategoryId: skillDoc.CategoryId }) : null;
 
-      // delete old content file only because we will create a new one
+      // delete old auto-generated pdf
       try {
         if (skill.ContentFileURL) {
           const oldRel = skill.ContentFileURL.replace(/^\//, "");
@@ -1144,7 +1301,7 @@ export const updateUserSkill = async (req, res) => {
           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
         }
       } catch (e) {
-        console.warn("Could not remove old autogenerated content file:", e && e.message ? e.message : e);
+        console.warn("Could not remove old autogenerated content file:", e.message);
       }
 
       const fileName = `content_${skill.UserId}_${Date.now()}.pdf`;
@@ -1161,25 +1318,20 @@ export const updateUserSkill = async (req, res) => {
           templateImagePath,
         });
       } catch (genErr) {
-        console.error("generatePdfForSkill failed:", genErr && (genErr.stack || genErr.message || genErr));
         return res.status(500).json({
           success: false,
-          message: "Failed to generate content PDF",
-          error: String(genErr && (genErr.message || genErr)),
+          message: "Failed to generate PDF",
         });
       }
 
       skill.ContentFileURL = `/uploads/contentfiles/${fileName}`;
-    } else {
-      console.log("No EditedText/template data to generate PDF. Keeping existing ContentFileURL.");
     }
 
     await skill.save();
 
-    console.log("updateUserSkill finished for:", skillId);
     return res.json({ success: true, message: "Skill updated", data: skill });
   } catch (err) {
-    console.error("UpdateSkill Error:", err && (err.stack || err.message || err));
+    console.error("UpdateSkill Error:", err);
     return res.status(500).json({ success: false, message: err.message || "Server error" });
   }
 };

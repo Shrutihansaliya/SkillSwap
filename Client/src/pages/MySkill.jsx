@@ -3800,7 +3800,7 @@ try {
 
   /* -------------------- Render -------------------- */
   return (
-    <div className="p-6 sm:p-8 bg-[#F7F4EA] rounded-2xl shadow-md min-h-[80vh] border border-[#A8BBA3]/60">
+    <div className="p-6 sm:p-8 bg-gradient-to-br from-[#F8F5F0] via-[#E8F0E3] to-[#F8F5F0] rounded-2xl shadow-md min-h-[80vh] border border-[#A8BBA3]/60">
       <style>{`
         .skill-popup { background: #F7EFE5; border-radius: 20px; padding: 22px; border: 1px solid #D8C7B2; box-shadow: 0px 14px 40px rgba(9,30,66,0.08); animation: popupShow 220ms ease-out;}
         @keyframes popupShow { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: scale(1); } }

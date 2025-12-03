@@ -276,7 +276,7 @@ const RequestsPage = () => {
     );
 
   return (
-    <div className="p-4 sm:p-6 bg-gradient-to-br from-[#F7F4EA] via-[#A8BBA3] to-[#F7F4EA] rounded-2xl border border-[#A8BBA3]/60 min-h-[80vh]">
+    <div className="p-4 sm:p-6 bg-gradient-to-br from-[#F8F5F0] via-[#E8F0E3] to-[#F8F5F0] rounded-2xl border border-[#A8BBA3]/60 min-h-[80vh]">
       <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6 bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] text-transparent bg-clip-text drop-shadow-sm">
         💬 Skill Swap Requests
       </h1>

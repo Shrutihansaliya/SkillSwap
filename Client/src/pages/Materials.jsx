@@ -121,32 +121,35 @@ const Materials = ({ selectedSwap, user, reloadSignal }) => {
         <FaUpload className="text-[#B87C4C]" /> Uploaded Materials
       </h4>
 
-      {/* Upload section */}
-      <div className="mb-6 flex flex-wrap items-center gap-4">
-        <label className="cursor-pointer inline-flex items-center gap-2 bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md hover:shadow-lg hover:scale-[1.02] transition">
-          <FaUpload />
-          Choose file
-          <input
-            type="file"
-            className="hidden"
-            onChange={(e) => handleUpload(e.target.files[0])}
-          />
-        </label>
+     {/* Upload section — hidden if swap is completed */}
+{!selectedSwap?.Status === "Completed" && (
+  <div className="mb-6 flex flex-wrap items-center gap-4">
+    <label className="cursor-pointer inline-flex items-center gap-2 bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md hover:shadow-lg hover:scale-[1.02] transition">
+      <FaUpload />
+      Choose file
+      <input
+        type="file"
+        className="hidden"
+        onChange={(e) => handleUpload(e.target.files[0])}
+      />
+    </label>
 
-        {isUploading && (
-          <div className="flex items-center gap-3">
-            <div className="w-48 relative bg-[#CBBFAE]/60 rounded-full h-3 overflow-hidden">
-              <div
-                className="h-3 rounded-full bg-gradient-to-r from-[#B87C4C] to-[#8E5C32]"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-            <span className="text-xs text-gray-700 font-medium">
-              {uploadProgress}%
-            </span>
-          </div>
-        )}
+    {isUploading && (
+      <div className="flex items-center gap-3">
+        <div className="w-48 relative bg-[#CBBFAE]/60 rounded-full h-3 overflow-hidden">
+          <div
+            className="h-3 rounded-full bg-gradient-to-r from-[#B87C4C] to-[#8E5C32]"
+            style={{ width: `${uploadProgress}%` }}
+          />
+        </div>
+        <span className="text-xs text-gray-700 font-medium">
+          {uploadProgress}%
+        </span>
       </div>
+    )}
+  </div>
+)}
+
 
       {materials.length === 0 ? (
         <p className="text-gray-500 text-center italic bg-[#F7F4EA] border border-[#A8BBA3]/60 rounded-2xl py-4">

@@ -216,12 +216,39 @@ export const getMaterialsBySwap = async (req, res) => {
 };
 
 // 🗑️ Secure Delete Material
+// export const deleteMaterial = async (req, res) => {
+//   try {
+//     const { materialId } = req.params;
+//     const { userId } = req.body;
+
+//     console.log("🟡 Delete Request:", { materialId, userId }); // Debug log
+
+//     const material = await Material.findById(materialId);
+//     if (!material)
+//       return res.status(404).json({ success: false, message: "Material not found" });
+
+//     if (material.UserId.toString() !== userId) {
+//       return res
+//         .status(403)
+//         .json({ success: false, message: "Not authorized to delete this file" });
+//     }
+
+//     const filePath = path.join(process.cwd(), material.FileURL);
+//     console.log("📁 File Path:", filePath);
+
+//     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+//     await Material.findByIdAndDelete(materialId);
+//     res.json({ success: true, message: "Material deleted successfully" });
+//   } catch (err) {
+//     console.error("❌ Delete Error:", err);
+//     res.status(500).json({ success: false, message: "Server error" });
+//   }
+// };
 export const deleteMaterial = async (req, res) => {
   try {
     const { materialId } = req.params;
     const { userId } = req.body;
-
-    console.log("🟡 Delete Request:", { materialId, userId }); // Debug log
 
     const material = await Material.findById(materialId);
     if (!material)
@@ -233,13 +260,27 @@ export const deleteMaterial = async (req, res) => {
         .json({ success: false, message: "Not authorized to delete this file" });
     }
 
-    const filePath = path.join(process.cwd(), material.FileURL);
-    console.log("📁 File Path:", filePath);
+    // ✅ Make correct absolute path
+    const filePath = path.join(
+      process.cwd(),
+      material.FileURL.replace(/\\/g, "/")
+    );
 
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    console.log("🗑️ Deleting file:", filePath);
 
+    // ✅ Delete file if exists
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log("💾 File deleted from uploads folder");
+    } else {
+      console.log("⚠️ File not found on server, skipping deletion");
+    }
+
+    // ✅ Delete DB record
     await Material.findByIdAndDelete(materialId);
+
     res.json({ success: true, message: "Material deleted successfully" });
+
   } catch (err) {
     console.error("❌ Delete Error:", err);
     res.status(500).json({ success: false, message: "Server error" });

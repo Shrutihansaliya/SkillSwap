@@ -395,15 +395,14 @@
 // pages/ActivityHistory.jsx
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { FaUpload, FaStar, FaFlag, FaVideo } from "react-icons/fa";
+import { FaUpload, FaStar, FaFlag, FaVideo, FaHistory, FaCheckCircle, FaExchangeAlt, FaGraduationCap, FaChalkboardTeacher, FaUsers, FaCalendarAlt } from "react-icons/fa";
 import Materials from "../pages/Materials.jsx";
 import Feedback from "../pages/Feedback.jsx";
 import Report from "../pages/Report.jsx";
-import VideoDetail from "../pages/VideoDetail.jsx"; // ✅ VIDEO PANEL
+import VideoDetail from "../pages/VideoDetail.jsx";
 
 const API_BASE = "http://localhost:4000";
 
-// Avatar (currently unused, future use mate rakhelu)
 const InitialsAvatar = ({ name, size = 36 }) => {
   const initials = (name || "")
     .split(" ")
@@ -414,29 +413,31 @@ const InitialsAvatar = ({ name, size = 36 }) => {
   return (
     <div
       style={{ width: size, height: size }}
-      className="flex items-center justify-center rounded-full bg-[#CBBFAE] text-[#4A3420] font-semibold"
+      className="flex items-center justify-center rounded-full bg-gradient-to-br from-[#B87C4C] to-[#8E5C32] text-white font-semibold shadow-md"
     >
       {initials || "U"}
     </div>
   );
 };
 
-// Stars (currently unused, but theme-friendly)
 const StarsInline = ({ value }) => {
   if (!value || Number(value) <= 0) {
     return (
-      <div className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 inline-block">
+      <div className="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-600 inline-flex items-center gap-1">
+        <FaStar className="text-gray-400" />
         No rating yet
       </div>
     );
   }
   return (
-    <div className="text-[#E2B714] inline-block select-none">
+    <div className="inline-flex items-center gap-1 bg-gradient-to-r from-[#FFD700]/10 to-[#FFD700]/5 px-3 py-1 rounded-full">
       {Array.from({ length: 5 }).map((_, i) => (
-        <span key={i} className={`text-sm ${i < value ? "" : "opacity-40"}`}>
-          {i < value ? "★" : "☆"}
-        </span>
+        <FaStar
+          key={i}
+          className={`text-sm ${i < value ? "text-[#E2B714]" : "text-gray-300"}`}
+        />
       ))}
+      <span className="text-xs font-medium text-gray-700 ml-1">{value.toFixed(1)}</span>
     </div>
   );
 };
@@ -450,14 +451,11 @@ const ActivityHistory = () => {
   const [materialsReload, setMaterialsReload] = useState(0);
 
   const [showFeedbackPanel, setShowFeedbackPanel] = useState(false);
-  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [feedbackSavedSignal, setFeedbackSavedSignal] = useState(0);
   const [feedbacks, setFeedbacks] = useState([]);
   const [feedbacksLoading, setFeedbacksLoading] = useState(false);
 
   const [showReportModal, setShowReportModal] = useState(false);
-
-  // ✅ NEW VIDEO PANEL STATES
   const [showVideoPanel, setShowVideoPanel] = useState(false);
   const [videoReload, setVideoReload] = useState(0);
 
@@ -466,7 +464,6 @@ const ActivityHistory = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const myId = user?._id || user?.UserId;
 
-  // Fetch completed swaps
   const fetchSwaps = async () => {
     try {
       setLoading(true);
@@ -486,7 +483,6 @@ const ActivityHistory = () => {
     fetchSwaps();
   }, [user?._id, feedbackSavedSignal]);
 
-  // Fetch feedbacks for swap
   const fetchFeedbacksForSwap = async (swapId) => {
     try {
       setFeedbacksLoading(true);
@@ -500,214 +496,379 @@ const ActivityHistory = () => {
     }
   };
 
-  if (loading)
-    return (
-      <p className="text-center mt-6 text-[#8E5C32] font-medium">
-        Loading completed swaps...
-      </p>
-    );
-
-  // Compute avg rating (future use mate)
-  const computeAvgRating = (items) => {
-    if (!items || items.length === 0) return { avg: 0, count: 0 };
-    const sum = items.reduce((s, f) => s + (Number(f.Rating) || 0), 0);
-    const avg = Math.round((sum / items.length) * 10) / 10;
-    return { avg, count: items.length };
+  const handleShowFeedback = async () => {
+    if (!showFeedbackPanel) {
+      await fetchFeedbacksForSwap(selectedSwap._id);
+    }
+    setShowFeedbackPanel(!showFeedbackPanel);
   };
 
-  const partnerFeedbacks = feedbacks.filter(
-    (f) => String(f.SenderId?._id || f.SenderId) !== String(myId)
-  );
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-[#8E5C32]/20 border-t-[#8E5C32] rounded-full animate-spin"></div>
+          <FaHistory className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[#8E5C32] text-xl" />
+        </div>
+        <p className="mt-4 text-[#8E5C32] font-medium">Loading your swap history...</p>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className="p-6 w-full min-h-screen mx-auto 
-      bg-gradient-to-br from-[#F7F4EA] via-[#A8BBA3] to-[#F7F4EA] 
-      rounded-3xl shadow-inner flex flex-col border border-[#A8BBA3]/60"
-    >
+    <div className="p-4 md:p-6 w-full min-h-screen  bg-gradient-to-br from-[#F8F5F0] via-[#E8F0E3] to-[#F8F5F0]
+      rounded-2xl border border-[#A8BBA3]/60 shadow-inner">
       {/* MAIN LIST */}
       {!selectedSwap ? (
-        <>
-          <h2 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] bg-clip-text text-transparent drop-shadow-sm">
-            Completed Swap History
-          </h2>
+        <div className="max-w-7xl mx-auto">
+          {/* Header Section */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-[#3A2A1A] flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-gradient-to-br from-[#B87C4C] to-[#8E5C32] shadow-lg">
+                  <FaHistory className="text-white text-2xl" />
+                </div>
+                Completed Swap History
+              </h1>
+              <p className="text-gray-600 mt-2">Review your past skill exchanges and feedback</p>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm">
+              <FaCheckCircle className="text-green-500" />
+              <span className="text-sm font-medium text-gray-700">{swaps.length} Completed Swaps</span>
+            </div>
+          </div>
 
           {swaps.length === 0 ? (
-            <div className="flex flex-col items-center mt-20">
-              <div className="text-6xl mb-4">🤝</div>
-              <h3 className="text-xl font-semibold text-[#3A2A1A]">
-                No Completed Swaps Yet
-              </h3>
-              <p className="text-gray-600 mt-2 text-sm">
-                Once you finish a swap, you’ll see it here with all materials,
-                videos and feedback.
+            <div className="flex flex-col items-center justify-center mt-16 md:mt-24 p-8 bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-[#CBBFAE]/30 max-w-2xl mx-auto">
+              <div className="relative mb-6">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#F7F4EA] to-[#A8BBA3] flex items-center justify-center">
+                  <FaExchangeAlt className="text-4xl text-[#8E5C32]" />
+                </div>
+                <div className="absolute -bottom-2 -right-2 bg-white p-3 rounded-full shadow-lg">
+                  <FaHistory className="text-[#B87C4C]" />
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold text-[#3A2A1A] mb-3">No Completed Swaps Yet</h3>
+              <p className="text-gray-600 text-center max-w-md mb-6">
+                Once you finish a skill swap, it will appear here with all materials, videos, and feedback for review.
               </p>
+              <button 
+                onClick={fetchSwaps}
+                className="px-6 py-3 bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] text-white rounded-full font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+              >
+                Refresh
+              </button>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {swaps.map((swap) => (
                 <div
                   key={swap._id}
-                  className="bg-[#FDFCF8]/95 backdrop-blur-md rounded-3xl shadow-lg p-6 
-                  border border-[#CBBFAE] hover:border-[#B87C4C] 
-                  hover:-translate-y-1 hover:shadow-xl transition-all duration-300"
+                  className="group bg-white/90 backdrop-blur-sm rounded-3xl shadow-lg p-6 
+                  border border-[#CBBFAE]/50 hover:border-[#B87C4C] 
+                  hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 
+                  hover:bg-gradient-to-br hover:from-white hover:via-[#FDFCF8] hover:to-white"
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-[#3A2A1A]">
-                      {swap.Sender?.Username} ↔ {swap.Receiver?.Username}
-                    </h3>
-                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#E4D5C4] text-[#4A3420]">
-                      Completed
-                    </span>
+                  {/* Card Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <InitialsAvatar name={swap.Sender?.Username} />
+                        <div className="absolute -right-1 -bottom-1 bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] text-white p-1 rounded-full">
+                          <FaExchangeAlt className="text-xs" />
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-[#3A2A1A] text-lg">
+                          {swap.Sender?.Username} ↔ {swap.Receiver?.Username}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <FaCalendarAlt className="text-gray-400 text-xs" />
+                          <span className="text-xs text-gray-500">
+                            {swap.CompletedAt
+                              ? new Date(swap.CompletedAt).toLocaleDateString()
+                              : new Date(swap.CreatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-3 py-1 rounded-full bg-gradient-to-r from-green-500/10 to-green-500/5 border border-green-500/20">
+                      <FaCheckCircle className="text-green-500 text-sm" />
+                    </div>
                   </div>
 
-                  <p className="text-gray-700 text-sm">
-                    <strong>Learning:</strong> {swap.SkillToLearn?.Name}
-                  </p>
-                  <p className="text-gray-700 text-sm">
-                    <strong>Teaching:</strong> {swap.SkillToTeach?.Name}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Completed on{" "}
-                    {swap.CompletedAt
-                      ? new Date(swap.CompletedAt).toLocaleDateString()
-                      : new Date(swap.CreatedAt).toLocaleDateString()}
-                  </p>
+                  {/* Skills Section */}
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100/50">
+                      <FaGraduationCap className="text-[#3B82F6]" />
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-500">Learning</p>
+                        <p className="font-semibold text-gray-800">{swap.SkillToLearn?.Name}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100/50">
+                      <FaChalkboardTeacher className="text-[#B87C4C]" />
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-500">Teaching</p>
+                        <p className="font-semibold text-gray-800">{swap.SkillToTeach?.Name}</p>
+                      </div>
+                    </div>
+                  </div>
 
+                  {/* View Button */}
                   <button
                     onClick={() => setSelectedSwap(swap)}
-                    className="mt-4 w-full bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] 
-                    text-white rounded-full py-2 shadow-md 
-                    hover:shadow-lg hover:scale-[1.02] transition-all text-sm font-semibold"
+                    className="w-full group/btn relative overflow-hidden bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] 
+                    text-white rounded-xl py-3 px-4 shadow-lg 
+                    hover:shadow-xl hover:scale-[1.02] transition-all duration-300 font-semibold
+                    flex items-center justify-center gap-2"
                   >
-                    View Details
+                    <span className="relative z-10">View Details</span>
+                    <div className="relative z-10 transform group-hover/btn:translate-x-1 transition-transform">
+                      →
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#8E5C32] to-[#B87C4C] opacity-0 group-hover/btn:opacity-100 transition-opacity"></div>
                   </button>
                 </div>
               ))}
             </div>
           )}
-        </>
+        </div>
       ) : (
         <>
-          <button
-            onClick={() => {
-              setSelectedSwap(null);
-              setShowMaterials(false);
-              setShowFeedbackPanel(false);
-              setShowVideoPanel(false);
-              setShowReportModal(false);
-            }}
-            className="text-[#8E5C32] hover:underline mb-4 font-medium text-sm"
-          >
-            ← Back to history
-          </button>
+          {/* Back Button - Using your design */}
+          <div className="max-w-7xl mx-auto mb-6">
+            <button
+              onClick={() => {
+                setSelectedSwap(null);
+                setShowMaterials(false);
+                setShowFeedbackPanel(false);
+                setShowVideoPanel(false);
+                setShowReportModal(false);
+              }}
+              className="bg-transparent mb-4 hover:opacity-80 transition-opacity focus:outline-none"
+            >
+              <img 
+                src="/backimg.png" 
+                alt="Back to history"
+                className="h-10 w-auto"
+              />
+            </button>
+          </div>
 
           {/* DETAIL CARD */}
-          <div className="bg-[#FDFCF8]/95 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-[#CBBFAE]">
-            {/* Header */}
-            <h3 className="text-2xl font-bold text-[#3A2A1A] mb-2">
-              {selectedSwap.Sender?.Username} ↔{" "}
-              {selectedSwap.Receiver?.Username}
-            </h3>
-
-            <p className="text-gray-700 text-sm">
-              <strong>Learning:</strong>{" "}
-              {selectedSwap.SkillToLearn?.Name || "N/A"}
-            </p>
-            <p className="text-gray-700 text-sm mb-2">
-              <strong>Teaching:</strong>{" "}
-              {selectedSwap.SkillToTeach?.Name || "N/A"}
-            </p>
-
-            {/* Buttons Row */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 mb-8">
-              {/* Materials */}
-              <button
-                onClick={() => setShowMaterials((p) => !p)}
-                className="bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] 
-                text-white px-4 py-3 rounded-xl shadow 
-                hover:shadow-lg hover:scale-[1.02] text-sm font-medium"
-              >
-                <FaUpload className="inline-block mr-2" />
-                {showMaterials ? "Hide Materials" : "Show Materials"}
-              </button>
-
-              {/* Feedback */}
-              <button
-                onClick={async () => {
-                  await fetchFeedbacksForSwap(selectedSwap._id);
-                  setShowFeedbackPanel(true);
-                  setShowFeedbackForm(false);
-                }}
-                className="bg-[#E2B714] text-[#3A2A1A] px-4 py-3 rounded-xl shadow 
-                hover:bg-[#D1A710] hover:shadow-lg hover:scale-[1.02] text-sm font-medium"
-              >
-                <FaStar className="inline-block mr-2" />
-                Feedback
-              </button>
-
-              {/* 🎥 Show/Hide Videos */}
-              <button
-                onClick={() => setShowVideoPanel((p) => !p)}
-                className="bg-gradient-to-r from-[#D47C4C] to-[#B72F2F] 
-                text-white px-4 py-3 rounded-xl shadow 
-                hover:shadow-lg hover:scale-[1.02] text-sm font-medium"
-              >
-                <FaVideo className="inline-block mr-2" />
-                {showVideoPanel ? "Hide Videos" : "Show Videos"}
-              </button>
-
-              {/* Report */}
-              <button
-                onClick={() => setShowReportModal(true)}
-                className="bg-gradient-to-r from-[#F97373] to-[#B91C1C] 
-                text-white px-4 py-3 rounded-xl shadow 
-                hover:shadow-lg hover:scale-[1.02] text-sm font-medium"
-              >
-                <FaFlag className="inline-block mr-2" />
-                Report
-              </button>
-            </div>
-
-            {/* PANELS */}
-            <div className="space-y-8">
-              {showMaterials && (
-                <Materials
-                  selectedSwap={selectedSwap}
-                  user={user}
-                  reloadSignal={materialsReload}
-                />
-              )}
-
-              {showFeedbackPanel && (
-                <Feedback
-                  swap={selectedSwap}
-                  user={user}
-                  onClose={() => setShowFeedbackPanel(false)}
-                  onSaved={() => setFeedbackSavedSignal((v) => v + 1)}
-                />
-              )}
-
-              {/* 🎥 VIDEO PANEL */}
-              {showVideoPanel && (
-                <div className="bg-white rounded-3xl p-4 shadow-lg border border-[#CBBFAE]">
-                  <VideoDetail
-                    swapId={selectedSwap._id}
-                    user={user}
-                    reload={videoReload}
-                  />
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-gradient-to-br from-white via-[#FDFCF8] to-white backdrop-blur-sm 
+              rounded-3xl p-6 md:p-8 shadow-2xl border border-[#CBBFAE]/50">
+              
+              {/* Header with Avatars */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <InitialsAvatar name={selectedSwap.Sender?.Username} size={48} />
+                    <div className="absolute -bottom-1 -right-1 bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] text-white p-1.5 rounded-full">
+                      <FaUsers className="text-xs" />
+                    </div>
+                  </div>
+                  <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-[#3A2A1A]">
+                      Swap Details
+                    </h1>
+                    <p className="text-gray-600 flex items-center gap-2">
+                      <FaExchangeAlt className="text-[#B87C4C]" />
+                      <span className="font-medium text-[#8E5C32]">
+                        {selectedSwap.Sender?.Username} ↔ {selectedSwap.Receiver?.Username}
+                      </span>
+                    </p>
+                  </div>
                 </div>
-              )}
+                
+                <div className="flex items-center gap-3 bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2 rounded-full border border-green-200">
+                  <FaCheckCircle className="text-green-500" />
+                  <span className="font-medium text-green-700">Completed Swap</span>
+                </div>
+              </div>
 
-              {/* Report Modal */}
-              {showReportModal && (
-                <Report
-                  swap={selectedSwap}
-                  user={user}
-                  onClose={() => setShowReportModal(false)}
-                  onSubmitted={() => fetchSwaps()}
-                />
-              )}
+              {/* Skills Cards */}
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+  <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+    <div className="flex items-center gap-2 mb-3">
+      <div className="p-2 rounded-lg bg-blue-100">
+        <FaGraduationCap className="text-blue-600" />
+      </div>
+      <div>
+        <h3 className="font-semibold text-gray-700 text-sm">Skill Learned</h3>
+        <p className="text-xs text-gray-500">From your partner</p>
+      </div>
+    </div>
+    <div className="text-lg font-bold text-gray-800">
+      {selectedSwap.SkillToLearn?.Name || "N/A"}
+    </div>
+  </div>
+
+  <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+    <div className="flex items-center gap-2 mb-3">
+      <div className="p-2 rounded-lg bg-amber-100">
+        <FaChalkboardTeacher className="text-amber-600" />
+      </div>
+      <div>
+        <h3 className="font-semibold text-gray-700 text-sm">Skill Taught</h3>
+        <p className="text-xs text-gray-500">To your partner</p>
+      </div>
+    </div>
+    <div className="text-lg font-bold text-gray-800">
+      {selectedSwap.SkillToTeach?.Name || "N/A"}
+    </div>
+  </div>
+</div>
+
+              {/* Action Buttons Grid - Fixed toggle functionality */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+                {/* Materials Button - Fixed toggle */}
+                <button
+                  onClick={() => setShowMaterials(!showMaterials)}
+                  className="group relative overflow-hidden bg-gradient-to-br from-white to-gray-50 
+                  p-4 rounded-2xl shadow-lg hover:shadow-xl border border-[#CBBFAE]/50 
+                  hover:border-[#B87C4C] transition-all duration-300 hover:-translate-y-1"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-3 rounded-xl ${showMaterials ? 'bg-[#8E5C32]' : 'bg-gradient-to-r from-[#B87C4C] to-[#8E5C32]'}`}>
+                      <FaUpload className="text-white" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-gray-800">Materials</h4>
+                      <p className="text-xs text-gray-500">Shared files & documents</p>
+                    </div>
+                  </div>
+                  <div className={`mt-3 text-sm font-medium ${showMaterials ? 'text-[#8E5C32]' : 'text-gray-600'}`}>
+                    {showMaterials ? "▼ Hide" : "▲ Show"}
+                  </div>
+                </button>
+
+                {/* Feedback Button - Fixed toggle */}
+                <button
+                  onClick={handleShowFeedback}
+                  className="group relative overflow-hidden bg-gradient-to-br from-white to-gray-50 
+                  p-4 rounded-2xl shadow-lg hover:shadow-xl border border-[#CBBFAE]/50 
+                  hover:border-[#E2B714] transition-all duration-300 hover:-translate-y-1"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-3 rounded-xl ${showFeedbackPanel ? 'bg-[#E2B714]' : 'bg-gradient-to-r from-[#FFD700] to-[#E2B714]'}`}>
+                      <FaStar className="text-white" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-gray-800">Feedback</h4>
+                      <p className="text-xs text-gray-500">Ratings & comments</p>
+                    </div>
+                  </div>
+                  <div className={`mt-3 text-sm font-medium ${showFeedbackPanel ? 'text-[#E2B714]' : 'text-gray-600'}`}>
+                    {showFeedbackPanel ? "▼ Hide" : "▲ Show"}
+                  </div>
+                </button>
+
+                {/* Videos Button - Fixed toggle */}
+                <button
+                  onClick={() => setShowVideoPanel(!showVideoPanel)}
+                  className="group relative overflow-hidden bg-gradient-to-br from-white to-gray-50 
+                  p-4 rounded-2xl shadow-lg hover:shadow-xl border border-[#CBBFAE]/50 
+                  hover:border-[#B72F2F] transition-all duration-300 hover:-translate-y-1"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-3 rounded-xl ${showVideoPanel ? 'bg-[#B72F2F]' : 'bg-gradient-to-r from-[#D47C4C] to-[#B72F2F]'}`}>
+                      <FaVideo className="text-white" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-gray-800">Videos</h4>
+                      <p className="text-xs text-gray-500">Session recordings</p>
+                    </div>
+                  </div>
+                  <div className={`mt-3 text-sm font-medium ${showVideoPanel ? 'text-[#B72F2F]' : 'text-gray-600'}`}>
+                    {showVideoPanel ? "▼ Hide" : "▲ Show"}
+                  </div>
+                </button>
+
+                {/* Report Button */}
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="group relative overflow-hidden bg-gradient-to-br from-white to-gray-50 
+                  p-4 rounded-2xl shadow-lg hover:shadow-xl border border-[#CBBFAE]/50 
+                  hover:border-[#B91C1C] transition-all duration-300 hover:-translate-y-1"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-[#F97373] to-[#B91C1C]">
+                      <FaFlag className="text-white" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-gray-800">Report</h4>
+                      <p className="text-xs text-gray-500">Report an issue</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-sm font-medium text-gray-600">
+                    Report Issue
+                  </div>
+                </button>
+              </div>
+
+              {/* PANELS SECTION */}
+              <div className="space-y-8">
+                {showMaterials && (
+                  <div className="bg-gradient-to-br from-white to-gray-50 rounded-3xl p-6 shadow-lg border border-[#CBBFAE]">
+                    <h3 className="text-xl font-bold text-[#3A2A1A] mb-6 flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-r from-[#B87C4C] to-[#8E5C32]">
+                        <FaUpload className="text-white" />
+                      </div>
+                      Shared Materials
+                    </h3>
+                    <Materials
+                      selectedSwap={selectedSwap}
+                      user={user}
+                      reloadSignal={materialsReload}
+                    />
+                  </div>
+                )}
+
+                {showFeedbackPanel && (
+                  <div className="bg-gradient-to-br from-white to-amber-50/30 rounded-3xl p-6 shadow-lg border border-amber-200">
+                    <h3 className="text-xl font-bold text-[#3A2A1A] mb-6 flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-r from-[#FFD700] to-[#E2B714]">
+                        <FaStar className="text-white" />
+                      </div>
+                      Swap Feedback
+                    </h3>
+                    <Feedback
+                      swap={selectedSwap}
+                      user={user}
+                      onClose={() => setShowFeedbackPanel(false)}
+                      onSaved={() => setFeedbackSavedSignal((v) => v + 1)}
+                    />
+                  </div>
+                )}
+
+                {showVideoPanel && (
+                  <div className="bg-gradient-to-br from-white to-red-50/30 rounded-3xl p-6 shadow-lg border border-red-200">
+                    <h3 className="text-xl font-bold text-[#3A2A1A] mb-6 flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-r from-[#D47C4C] to-[#B72F2F]">
+                        <FaVideo className="text-white" />
+                      </div>
+                      Session Videos
+                    </h3>
+                    <VideoDetail
+                      swapId={selectedSwap._id}
+                      user={user}
+                      reload={videoReload}
+                    />
+                  </div>
+                )}
+
+                {showReportModal && (
+                  <Report
+                    swap={selectedSwap}
+                    user={user}
+                    onClose={() => setShowReportModal(false)}
+                    onSubmitted={() => fetchSwaps()}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </>
