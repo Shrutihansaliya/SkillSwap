@@ -1,7 +1,7 @@
 // controllers/skillRequestController.js
 import SkillRequest from "../models/SkillRequest.js";
 import User from "../models/User.js"; // optional: used for validation
-
+import Notification from "../models/Notification.js";
 /**
  * Create a new skill request (user)
  * POST /api/skill-requests
@@ -96,33 +96,74 @@ export const getRequestById = async (req, res) => {
  * body: { status, adminReply }
  * Admin-only
  */
+// controllers/skillRequestController.js
+
+
 export const replyToRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, adminReply } = req.body;
 
-    if (!["Pending", "Approved", "Rejected"].includes(status || "")) {
-      return res.status(400).json({ success: false, message: "Invalid status. Use Pending, Approved or Rejected" });
+    if (!["Pending", "Approved", "Rejected"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Status must be Pending / Approved / Rejected",
+      });
     }
 
     const reqDoc = await SkillRequest.findById(id);
-    if (!reqDoc) return res.status(404).json({ success: false, message: "Request not found" });
+    if (!reqDoc) {
+      return res.status(404).json({
+        success: false,
+        message: "Request not found",
+      });
+    }
 
+    // Save status + reply
     reqDoc.Status = status;
-    reqDoc.AdminReply = adminReply ? adminReply.trim() : null;
-    reqDoc.ReadByAdmin = true;
+    reqDoc.AdminReply = adminReply || null;
     reqDoc.UpdatedAt = Date.now();
-
     await reqDoc.save();
 
-    // Optional: you can add a notification for user here (not email) — omitted per request.
+    // ----------- NOTIFICATION CREATION --------------
+    const userId = reqDoc.UserId;
 
-    res.json({ success: true, message: "Request updated", request: reqDoc });
-  } catch (err) {
-    console.error("replyToRequest error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    let message = "";
+    let type = "";
+
+    if (status === "Approved") {
+      message = `Your skill request was APPROVED. ${adminReply}`;
+      type = "skillcategoryadd";
+    } else if (status === "Rejected") {
+      message = `Your skill request was REJECTED. Reason: ${adminReply}`;
+      type = "request_rejected";
+    }
+
+    if (userId) {
+      await Notification.create({
+        userId,
+        message,
+        type,
+        link: "/notifications",
+      });
+    }
+
+    // -------------------------------------------------
+
+    return res.json({
+      success: true,
+      message: "Request updated with notification",
+      request: reqDoc,
+    });
+  } catch (error) {
+    console.error("replyToRequest error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
+
 
 /**
  * Optional: mark a request as read by the user (if you want)

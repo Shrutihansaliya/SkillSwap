@@ -28,7 +28,8 @@ const NotificationSchema = new mongoose.Schema({
       "swap_limit_reached",
       "partner_suspended", 
       "swap_started",              // ⭐ NEW
-      "subscription_promoted",     // ⭐ NEW              // 👈 important
+      "subscription_promoted",  
+      "skillcategoryadd",   // ⭐ NEW              // 👈 important
     ],
     default: "general",
   },
