@@ -306,7 +306,7 @@ export default function AdminReports() {
 
       {/* ----------- SEARCH BAR & FILTERS ----------- */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Admin — Reports</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Complaints from Members</h1>
 
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-white rounded-md shadow px-2">
@@ -361,8 +361,8 @@ export default function AdminReports() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">#</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Reporter</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Reported</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Complainant</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Defendant</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Reason</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Status</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Created</th>
@@ -380,7 +380,7 @@ export default function AdminReports() {
             ) : reports.length === 0 ? (
               <tr>
                 <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                  No reports found.
+                  No Complaints yet.
                 </td>
               </tr>
             ) : (

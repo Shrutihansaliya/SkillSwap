@@ -12,6 +12,8 @@ import UserSkill from "../models/UserSkill.js";
 import Subscription from "../models/Subscription.js";
 import PDFDocument from "pdfkit";
 
+
+
 // ======================
 // ✅ GET ACTIVE CITIES
 // ======================
@@ -518,29 +520,54 @@ const generatePdfForSkill = async ({
 // ======================
 // ADD MULTIPLE SKILLS (with generated PDFs)
 // ======================
+// Replace the existing addUserSkills export with this improved version:
+
 export const addUserSkills = async (req, res) => {
   try {
-    const { UserId, SkillData } = req.body;
+    // DEBUG: show what arrived
+    console.log("addUserSkills - req.body keys:", Object.keys(req.body || {}));
+    console.log("addUserSkills - req.files keys:", Object.keys(req.files || {}));
+    console.log("addUserSkills - req.files:", req.files);
+
+    const { UserId, SkillData, RowMeta } = req.body;
 
     if (!UserId || !SkillData)
       return res.status(400).json({ success: false, message: "UserId and SkillData required" });
 
-    const skillArray = JSON.parse(SkillData);
+    let skillArray;
+    try {
+      skillArray = JSON.parse(SkillData);
+    } catch (parseErr) {
+      console.error("SkillData JSON parse error:", parseErr);
+      return res.status(400).json({ success: false, message: "Invalid SkillData JSON" });
+    }
 
-    if (skillArray.length < 1 || skillArray.length > 5)
+    if (!Array.isArray(skillArray) || skillArray.length < 1 || skillArray.length > 5)
       return res.status(400).json({ success: false, message: "Add minimum 1 and maximum 5 skills" });
 
     const savedSkills = [];
 
-    // files arrays (multer)
-    const certFiles = req.files?.certificates || []; // may contain empty Blob entries
-    const templateImages = req.files?.TemplateImages || []; // may contain empty file placeholders
+    // Multer-provided arrays (only actual uploaded files will appear here)
+   // Multer-provided arrays (only actual uploaded files will appear here)
+const certFiles = Array.isArray(req.files?.certificates) ? req.files.certificates : [];
+const templateImages = Array.isArray(req.files?.TemplateImages) ? req.files.TemplateImages : [];
+
+console.log("certFiles length:", certFiles.length, "templateImages length:", templateImages.length);
+
 
     // Ensure upload directories exist
-    ensureDir(path.join(process.cwd(), "uploads", "contentfiles"));
-    ensureDir(path.join(process.cwd(), "uploads", "certificates"));
+    // Ensure upload directories exist
+ensureDir(path.join(process.cwd(), "uploads", "contentfiles"));
+ensureDir(path.join(process.cwd(), "uploads", "certificates"));
+ensureDir(path.join(process.cwd(), "uploads", "template_images"));
+;
 
-    const logoPath = path.join(process.cwd(), "uploads", "logo.png"); // ensure logo exists here
+    const logoPath = path.join(process.cwd(), "uploads", "logo.png"); // optional
+
+    // We'll use pointers to consume uploaded files in order.
+    // For template images, we only consume an image file when the skill entry expects one (TemplateType === "image").
+    let certPtr = 0;
+    let imgPtr = 0;
 
     for (let i = 0; i < skillArray.length; i++) {
       const data = skillArray[i];
@@ -551,12 +578,30 @@ export const addUserSkills = async (req, res) => {
         UserId,
         SkillId: Number(data.SkillId),
       });
-      if (exists) continue;
+      if (exists) {
+        console.log(`Skipping duplicate SkillId ${data.SkillId} for user ${UserId}`);
+        continue;
+      }
 
-      // certificate file at same index if uploaded properly
-      const certFile = certFiles[i]?.path || null;
-      // templateImage file if uploaded
-      const templateImageFile = templateImages[i]?.path || null;
+      // Assign certificate (if any). We can't be 100% sure mapping without explicit index metadata,
+      // so we take the next available uploaded certificate if any remain.
+     // Assign certificate (if any) - guarded
+let certFilePath = null;
+if (certPtr < certFiles.length && certFiles[certPtr] && certFiles[certPtr].path) {
+  certFilePath = certFiles[certPtr].path;
+  certPtr++;
+}
+
+// Assign template image only if this entry expects an image - guarded
+let templateImageFile = null;
+if (String(data.TemplateType).toLowerCase() === "image") {
+  if (imgPtr < templateImages.length && templateImages[imgPtr] && templateImages[imgPtr].path) {
+    templateImageFile = templateImages[imgPtr].path;
+    imgPtr++;
+  } else {
+    templateImageFile = null;
+  }
+}
 
       // Get skill and category names for inclusion in PDF
       const skillDoc = await Skill.findOne({ SkillId: Number(data.SkillId) });
@@ -567,12 +612,21 @@ export const addUserSkills = async (req, res) => {
         categoryName = categoryDoc ? categoryDoc.CategoryName : null;
       }
 
+      // Defensive: if templateImageFile exists ensure file is actually present on disk
+      if (templateImageFile && !fs.existsSync(templateImageFile)) {
+        console.warn(`Template image path does not exist on disk for index ${i}:`, templateImageFile);
+        // treat as no image
+        templateImageFile = null;
+      }
+
       // Generate PDF from template
       let generatedPdfRelPath = null;
       try {
         const pdfFileName = `content_${UserId}_${Date.now()}_${i}.pdf`;
         const outputPdfPath = path.join("uploads", "contentfiles", pdfFileName);
+
         await generatePdfForSkill({
+          
           outputPdfPath,
           logoPath,
           categoryName,
@@ -581,10 +635,10 @@ export const addUserSkills = async (req, res) => {
           templateData: data.TemplateData,
           templateImagePath: templateImageFile,
         });
+
         generatedPdfRelPath = `/${outputPdfPath.replace(/\\/g, "/")}`;
       } catch (pdfErr) {
         console.error("PDF generation error for skill index", i, pdfErr);
-        // continue — still allow saving entry without content file if necessary
         generatedPdfRelPath = null;
       }
 
@@ -592,7 +646,7 @@ export const addUserSkills = async (req, res) => {
         UserId,
         SkillId: Number(data.SkillId),
         Source: data.Source || null,
-        CertificateURL: certFile ? `/${certFile.replace(/\\/g, "/")}` : null,
+        CertificateURL: certFilePath ? `/${certFilePath.replace(/\\/g, "/")}` : null,
         ContentFileURL: generatedPdfRelPath || null,
       });
 
@@ -794,31 +848,12 @@ export const getAllUsers = async (req, res) => {
 export const getUserSkills = async (req, res) => {
   try {
     const userId = req.params.userId;
+    const userSkills = await UserSkill.find({ UserId: userId })
+      .populate({ path: "SkillId", select: "Name SkillId CategoryId" })
+      .lean();
 
-    const userSkills = await UserSkill.find({ UserId: userId });
-
-    const skills = await Promise.all(
-      userSkills.map(async (us) => {
-        // Find skill by numeric SkillId
-        const skill = await Skill.findOne({ SkillId: us.SkillId });
-        if (!skill) return { SkillName: "Unnamed Skill", CategoryName: null };
-
-        let categoryName = null;
-        if (skill.CategoryId !== undefined && skill.CategoryId !== null) {
-          // Query category by numeric CategoryId field (not _id)
-          const category = await Category.findOne({ CategoryId: skill.CategoryId });
-          categoryName = category ? category.CategoryName : null;
-        }
-
-        return {
-          UserSkillId: us._id,
-          SkillName: skill.Name,
-          CategoryName: categoryName, // <-- corrected here
-        };
-      })
-    );
-
-    res.json({ success: true, skills });
+    // return the full userSkill objects
+    res.json({ success: true, data: userSkills });
   } catch (err) {
     console.error("Error fetching user skills:", err);
     res.status(500).json({ success: false, message: err.message });

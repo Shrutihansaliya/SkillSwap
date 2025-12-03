@@ -270,78 +270,81 @@ function Dashboard() {
               </button>
             </div>
 
-            {/* Profile dropdown */}
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setShowMenu((prev) => !prev)}
-                className="flex items-center gap-2 bg-[#F7F4EA] hover:bg-[#A8BBA3]/40 text-[#B87C4C] px-3 py-2 rounded-full shadow-sm border border-[#A8BBA3]/60 transition-all"
-              >
-                <div
-                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full text-white font-semibold text-lg shadow-md border-2 border-[#F7F4EA] select-none"
-                  style={{
-                    background: "linear-gradient(135deg, #B87C4C, #8E5C32)",
-                  }}
-                >
-                  {user?.Username?.charAt(0)?.toUpperCase() || "U"}
-                </div>
-              </button>
+          {/* Profile dropdown (compact) */}
+<div className="relative" ref={menuRef}>
+  <button
+    onClick={() => setShowMenu((prev) => !prev)}
+    className="flex items-center gap-1.5 bg-[#F7F4EA] hover:bg-[#A8BBA3]/40 text-[#B87C4C] px-2 py-1.5 rounded-full shadow-sm border border-[#A8BBA3]/60 transition-all"
+    aria-haspopup="true"
+    aria-expanded={showMenu}
+  >
+    <div
+      className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full text-white font-semibold text-sm shadow-md border-2 border-[#F7F4EA] select-none"
+      style={{
+        background: "linear-gradient(135deg, #B87C4C, #8E5C32)",
+      }}
+    >
+      {user?.Username?.charAt(0)?.toUpperCase() || "U"}
+    </div>
+  </button>
 
-              {showMenu && (
-                <div className="absolute right-0 mt-3 w-52 sm:w-56 bg-[#F7F4EA]/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-[#A8BBA3]/60 z-[50]">
-                  <div className="p-4 border-b border-[#A8BBA3]/40 text-center">
-                    <p className="font-semibold text-gray-800 text-sm">
-                      {user?.Username || "User"}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {user?.Email}
-                    </p>
-                  </div>
+  {showMenu && (
+    <div className="absolute right-0 mt-2 w-44 sm:w-48 bg-[#F7F4EA]/95 backdrop-blur-xl shadow-lg rounded-xl border border-[#A8BBA3]/60 z-[50]">
+      <div className="p-3 border-b border-[#A8BBA3]/40 text-center">
+        <p className="font-semibold text-gray-800 text-sm">
+          {user?.Username || "User"}
+        </p>
+        <p className="text-xs text-gray-500 truncate">
+          {user?.Email}
+        </p>
+      </div>
 
-                  <ul className="py-2">
-                    <li>
-                      <button
-                        onClick={() => {
-                          setActiveTab("profile");
-                          navigate("/dashboard?tab=profile");
-                          setShowMenu(false);
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-2 hover:bg-[#A8BBA3]/30 text-gray-700 transition-all text-sm"
-                      >
-                        <FiUser size={18} />
-                        Profile
-                      </button>
-                    </li>
+      <ul className="py-1">
+        <li>
+          <button
+            onClick={() => {
+              setActiveTab("profile");
+              navigate("/dashboard?tab=profile");
+              setShowMenu(false);
+            }}
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-[#A8BBA3]/30 text-gray-700 transition-all text-sm"
+          >
+            <FiUser size={16} />
+            <span className="truncate">Profile</span>
+          </button>
+        </li>
 
-                    <li>
-                      <button
-                        onClick={() => {
-                          setActiveTab("changepw");
-                          navigate("/dashboard?tab=changepw");
-                          setShowMenu(false);
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-2 hover:bg-[#A8BBA3]/30 text-gray-700 transition-all text-sm"
-                      >
-                        <FiKey size={18} />
-                        Change Password
-                      </button>
-                    </li>
+        <li>
+          <button
+            onClick={() => {
+              setActiveTab("changepw");
+              navigate("/dashboard?tab=changepw");
+              setShowMenu(false);
+            }}
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-[#A8BBA3]/30 text-gray-700 transition-all text-sm"
+          >
+            <FiKey size={16} />
+            <span className="truncate">Change Password</span>
+          </button>
+        </li>
 
-                    <li>
-                      <button
-                        onClick={() => {
-                          setShowMenu(false);
-                          handleLogout();
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-2 hover:bg-red-50 text-red-600 transition-all text-sm"
-                      >
-                        <FiLogOut size={18} />
-                        Logout
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              )}
-            </div>
+        <li>
+          <button
+            onClick={() => {
+              setShowMenu(false);
+              handleLogout();
+            }}
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-red-50 text-red-600 transition-all text-sm"
+          >
+            <FiLogOut size={16} />
+            <span className="truncate">Logout</span>
+          </button>
+        </li>
+      </ul>
+    </div>
+  )}
+</div>
+
           </div>
         </header>
 

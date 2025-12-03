@@ -1,24 +1,930 @@
-// let pdfParse;
-// (async () => {
-//   const module = await import("pdf-parse");
-//   pdfParse = module.default || module; 
-// })();
+
+// // controllers/userSkillsController.js
+// import fs from "fs";
+// import path from "path";
+// import { createRequire } from "node:module";
+// const require = createRequire(import.meta.url);
+
+// // pdf-parse compatibility (CJS/ESM)
+// const _pdfParseModule = require("pdf-parse");
+// const pdfParse = (_pdfParseModule && _pdfParseModule.default) ? _pdfParseModule.default : _pdfParseModule;
+
+// import UserSkill from "../models/UserSkill.js";
+// import SkillSwap from "../models/SkillSwap.js";
+// import Skill from "../models/Skill.js";
+// import Category from "../models/SkillCategory.js";
+
+// import PDFDocument from "pdfkit";
 
 
-import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+// async function generatePdfForSkill({
+//   outputPdfPath,
+//   logoPath = null,
+//   categoryName = "",
+//   skillName = "",
+//   templateType = "main",
+//   templateData = "",
+//   templateImagePath = null,
+// }) {
+//   return new Promise((resolve, reject) => {
+//     try {
+//       const dir = path.dirname(outputPdfPath);
+//       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+//       const doc = new PDFDocument({ margin: 40, size: "A4" });
+//       const outStream = fs.createWriteStream(outputPdfPath);
+//       doc.pipe(outStream);
+
+//       // Header: logo left
+//       if (logoPath && fs.existsSync(logoPath)) {
+//         try {
+//           doc.image(logoPath, doc.page.margins.left, 30, { width: 90 });
+//         } catch (e) {
+//           console.warn("Logo render failed:", e && e.message ? e.message : e);
+//         }
+//       }
+
+//       // Title block (right)
+//       const titleWidth = 250;
+//       const titleX = doc.page.width - doc.page.margins.right - titleWidth;
+//       doc.fontSize(18).fillColor("#0B3D91").text(skillName || "Skill", titleX, 40, { width: titleWidth, align: "right" });
+//       if (categoryName) {
+//         doc.moveDown(0.2).fontSize(10).fillColor("#666").text(categoryName, { align: "right" });
+//       }
+//       doc.moveDown(1.2);
+
+//       // divider
+//       const startX = doc.page.margins.left;
+//       const endX = doc.page.width - doc.page.margins.right;
+//       doc.moveTo(startX, doc.y).lineTo(endX, doc.y).strokeColor("#E0E0E0").stroke();
+//       doc.moveDown(0.8);
+
+//       const text = String(templateData || "").trim();
+
+//       if (templateType === "image") {
+//         // embed image (if provided)
+//         if (templateImagePath && fs.existsSync(templateImagePath)) {
+//           try {
+//             const maxImgWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+//             doc.image(templateImagePath, { fit: [maxImgWidth, 300], align: "center" });
+//             doc.moveDown(0.8);
+//           } catch (e) {
+//             console.warn("Template image render failed:", e && e.message ? e.message : e);
+//           }
+//         }
+//         if (text) {
+//           doc.fontSize(11).fillColor("#222").text(text, { align: "left", paragraphGap: 6 });
+//         }
+//       } else if (templateType === "sub") {
+//         // each non-empty line: Main - sub1, sub2
+//         const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+//         doc.fontSize(12).fillColor("#222");
+//         for (const line of lines) {
+//           const [mainPart, subPart] = line.split("-").map(p => p && p.trim());
+//           if (mainPart) {
+//             doc.fontSize(12).fillColor("#0B3D91").text(`• ${mainPart}`);
+//             if (subPart) {
+//               const subItems = subPart.split(",").map(s => s.trim()).filter(Boolean);
+//               if (subItems.length) {
+//                 doc.moveDown(0.15);
+//                 doc.fontSize(11).fillColor("#333");
+//                 // render subitems as a small bulleted list
+//                 subItems.forEach((si) => {
+//                   // use a tiny indent bullet
+//                   doc.list([si], { bulletRadius: 2, textIndent: 12 });
+//                 });
+//               }
+//             }
+//             doc.moveDown(0.6);
+//           }
+//         }
+//       } else if (templateType === "plain") {
+//         doc.fontSize(11).fillColor("#222").text(text, { align: "left", paragraphGap: 6 });
+//       } else {
+//         // default: main topics (comma separated) with checkmarks
+//         const topics = text.split(",").map(t => t.trim()).filter(Boolean);
+//         doc.fontSize(12).fillColor("#222");
+//         for (const t of topics) {
+//           doc.moveDown(0.25);
+//           doc.fontSize(11).fillColor("#00703C").text(`✓  ${t}`, { continued: false });
+//         }
+//       }
+
+//       doc.moveDown(2);
+//       doc.fontSize(9).fillColor("#888").text("Generated by SkillSwap", { align: "center" });
+
+//       doc.end();
+
+//       outStream.on("finish", () => resolve(true));
+//       outStream.on("error", (err) => reject(err));
+//     } catch (err) {
+//       reject(err);
+//     }
+//   });
+// }
+
+// /* ----------------------------------------------------------
+//    GET USER SKILLS
+// ----------------------------------------------------------- */
+// export const getUserSkills = async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+
+//     const skills = await UserSkill.find({ UserId: userId }).sort({ AddedDate: -1 });
+
+//     const skillData = await Promise.all(
+//       skills.map(async (userSkill) => {
+//         const skill = await Skill.findOne({ SkillId: userSkill.SkillId });
+//         const category = skill ? await Category.findOne({ CategoryId: skill.CategoryId }) : null;
+
+//         return {
+//           _id: userSkill._id,
+//           SkillId: userSkill.SkillId,
+//           CategoryId: skill?.CategoryId || null,
+//           SkillName: skill?.Name || "Unknown Skill",
+//           CategoryName: category?.CategoryName || "Unknown Category",
+//           CertificateURL: userSkill.CertificateURL,
+//           ContentFileURL: userSkill.ContentFileURL,
+//           Source: userSkill.Source,
+//           Status: userSkill.SkillAvailability,
+//           CertificateStatus: userSkill.CertificateStatus,
+//         };
+//       })
+//     );
+
+//     res.json({ success: true, data: skillData });
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+
+// /* ----------------------------------------------------------
+//    ADD SKILL
+// ----------------------------------------------------------- */
+// export const addUserSkill = async (req, res) => {
+//   try {
+//     const { UserId, SkillId, Source } = req.body;
+
+//     const cert = req.files?.Certificate?.[0] || null;
+//     const content = req.files?.ContentFile?.[0] || null;
+
+//     const newSkill = new UserSkill({
+//       UserId,
+//       SkillId,
+//       Source: Source || null,
+//       CertificateURL: cert ? `/uploads/certificates/${cert.filename}` : null,
+//       ContentFileURL: content ? `/uploads/contentfiles/${content.filename}` : null,
+//     });
+
+//     await newSkill.save();
+
+//     res.json({ success: true, message: "Skill added", data: newSkill });
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+
+// /* ----------------------------------------------------------
+//    GET PDF CONTENT (parse existing pdf)
+// ----------------------------------------------------------- */
+// export const getPdfContent = async (req, res) => {
+//   try {
+//     const { skillId } = req.params;
+
+//     const skill = await UserSkill.findById(skillId);
+//     if (!skill || !skill.ContentFileURL) return res.status(404).json({ success: false, message: "PDF not found" });
+
+//     const rel = String(skill.ContentFileURL || "").replace(/^\//, "");
+//     const filePath = path.join(process.cwd(), rel);
+
+//     if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: "PDF file missing" });
+
+//     const dataBuffer = fs.readFileSync(filePath);
+
+//     if (typeof pdfParse !== "function") {
+//       console.error("pdfParse is not available as function.");
+//       return res.status(500).json({ success: false, message: "PDF parser not available on server." });
+//     }
+
+//     const parsed = await pdfParse(dataBuffer);
+//     return res.json({
+//       success: true,
+//       text: parsed && parsed.text ? String(parsed.text) : "",
+//       templateType: "main",
+//     });
+//   } catch (err) {
+//     console.error("PDF read error:", err && (err.stack || err.message || err));
+//     res.status(500).json({ success: false, message: "Failed to read PDF" });
+//   }
+// };
+
+
+
+// // export const updateUserSkill = async (req, res) => {
+// //   try {
+// //     console.log("updateUserSkill called:", {
+// //       params: req.params,
+// //       body: req.body,
+// //       filesKeys: req.files ? Object.keys(req.files) : null,
+// //       filesPreview: req.files ? Object.fromEntries(Object.entries(req.files).map(([k, v]) => [k, v && v[0] ? { originalname: v[0].originalname, filename: v[0].filename, path: v[0].path, size: v[0].size } : null])) : {},
+// //     });
+
+// //     const { skillId } = req.params;
+// //     const { Source, EditedText, SkillId: incomingSkillId } = req.body;
+
+// //     const skill = await UserSkill.findById(skillId);
+// //     if (!skill) return res.status(404).json({ success: false, message: "Skill not found" });
+
+// //     // simple fields
+// //     if (Source !== undefined) skill.Source = Source === "" ? null : Source;
+// //     if (incomingSkillId !== undefined && incomingSkillId !== "") {
+// //       const parsed = Number(incomingSkillId);
+// //       skill.SkillId = Number.isFinite(parsed) ? parsed : incomingSkillId;
+// //     }
+
+// //     // Certificate file uploaded -> replace
+// //     if (req.files?.Certificate?.[0]) {
+// //       try {
+// //         if (skill.CertificateURL) {
+// //           const oldCertRel = skill.CertificateURL.replace(/^\//, "");
+// //           const oldCertPath = path.join(process.cwd(), oldCertRel);
+// //           if (fs.existsSync(oldCertPath)) fs.unlinkSync(oldCertPath);
+// //         }
+// //       } catch (e) { console.warn("Could not remove old certificate:", e && e.message ? e.message : e); }
+
+// //       const certFile = req.files.Certificate[0];
+// //       skill.CertificateURL = `/uploads/certificates/${certFile.filename}`;
+// //       skill.CertificateStatus = "Pending";
+// //     }
+
+// //     // If user uploaded a full PDF (ContentFile), replace existing content file with uploaded one.
+// //     if (req.files?.ContentFile?.[0]) {
+// //       try {
+// //         if (skill.ContentFileURL) {
+// //           const oldRel = skill.ContentFileURL.replace(/^\//, "");
+// //           const oldPath = path.join(process.cwd(), oldRel);
+// //           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+// //         }
+// //       } catch (e) { console.warn("Could not remove old content file:", e && e.message ? e.message : e); }
+
+// //       const contentFile = req.files.ContentFile[0];
+// //       skill.ContentFileURL = `/uploads/contentfiles/${contentFile.filename}`;
+// //       // Note: we do NOT regenerate PDF here because user uploaded final PDF directly.
+// //     }
+
+// //     // Regenerate PDF only if EditedText present (user edited text in textarea).
+// //     // If EditedText absent and no ContentFile uploaded, we KEEP old PDF intact (no bind/override).
+// //     if (EditedText && String(EditedText).trim()) {
+// //       const text = String(EditedText);
+
+// //       // heuristics for template type
+// //       let templateType = "main";
+// //       if (text.includes("-") && text.includes(",")) templateType = "sub";
+// //       if (text.includes("✓")) templateType = "main";
+// //       if (!text.includes(",") && !text.includes("-")) templateType = "plain";
+
+// //       const skillDoc = await Skill.findOne({ SkillId: skill.SkillId });
+// //       const categoryDoc = skillDoc ? await Category.findOne({ CategoryId: skillDoc.CategoryId }) : null;
+
+// //       // delete old content file only because we will create a new one
+// //       try {
+// //         if (skill.ContentFileURL) {
+// //           const oldRel = skill.ContentFileURL.replace(/^\//, "");
+// //           const oldPath = path.join(process.cwd(), oldRel);
+// //           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+// //         }
+// //       } catch (e) { /* ignore */ }
+
+// //       const fileName = `content_${skill.UserId}_${Date.now()}.pdf`;
+// //       const outputPdfPath = path.join("uploads", "contentfiles", fileName);
+
+// //       // Resolve template image path (if uploaded)
+// //       const templateImgFile = req.files?.TemplateImage?.[0] || null;
+// //       let templateImagePath = null;
+// //       if (templateImgFile) {
+// //         if (templateImgFile.path && typeof templateImgFile.path === "string" && fs.existsSync(templateImgFile.path)) {
+// //           templateImagePath = templateImgFile.path;
+// //         } else {
+// //           // fallback to uploads/contentfiles/filename
+// //           const candidate = path.join(process.cwd(), "uploads", "contentfiles", templateImgFile.filename);
+// //           if (fs.existsSync(candidate)) templateImagePath = candidate;
+// //         }
+// //       }
+
+// //       console.log("Will generate PDF:", { outputPdfPath, templateImagePath, templateType });
+
+// //       try {
+// //         await generatePdfForSkill({
+// //           outputPdfPath,
+// //           logoPath: path.join(process.cwd(), "uploads", "logo.png"),
+// //           categoryName: categoryDoc?.CategoryName || "",
+// //           skillName: skillDoc?.Name || "",
+// //           templateType,
+// //           templateData: text,
+// //           templateImagePath,
+// //         });
+// //       } catch (genErr) {
+// //         console.error("generatePdfForSkill failed:", genErr && (genErr.stack || genErr.message || genErr));
+// //         return res.status(500).json({ success: false, message: "Failed to generate content PDF", error: String(genErr && (genErr.message || genErr)) });
+// //       }
+
+// //       skill.ContentFileURL = `/uploads/contentfiles/${fileName}`;
+// //     } else {
+// //       // No EditedText -> keep old ContentFileURL as-is (do not overwrite)
+// //       console.log("No EditedText provided; keeping existing ContentFileURL (no regenerate).");
+// //     }
+
+// //     await skill.save();
+
+// //     console.log("updateUserSkill finished for:", skillId);
+// //     return res.json({ success: true, message: "Skill updated", data: skill });
+// //   } catch (err) {
+// //     console.error("UpdateSkill Error:", err && (err.stack || err.message || err));
+// //     return res.status(500).json({ success: false, message: err.message || "Server error" });
+// //   }
+// // };
+// export const updateUserSkill = async (req, res) => {
+//   try {
+//     console.log("updateUserSkill called:", {
+//       params: req.params,
+//       body: req.body,
+//       filesKeys: req.files ? Object.keys(req.files) : null,
+//       filesPreview: req.files
+//         ? Object.fromEntries(
+//             Object.entries(req.files).map(([k, v]) => [
+//               k,
+//               v && v[0] ? { originalname: v[0].originalname, filename: v[0].filename, path: v[0].path, size: v[0].size } : null,
+//             ])
+//           )
+//         : {},
+//     });
+
+//     const { skillId } = req.params;
+//     const { Source, EditedText, SkillId: incomingSkillId } = req.body;
+
+//     const skill = await UserSkill.findById(skillId);
+//     if (!skill) return res.status(404).json({ success: false, message: "Skill not found" });
+
+//     // simple fields
+//     if (Source !== undefined) skill.Source = Source === "" ? null : Source;
+//     if (incomingSkillId !== undefined && incomingSkillId !== "") {
+//       const parsed = Number(incomingSkillId);
+//       skill.SkillId = Number.isFinite(parsed) ? parsed : incomingSkillId;
+//     }
+
+//     // Certificate file uploaded -> replace
+//     if (req.files?.Certificate?.[0]) {
+//       try {
+//         if (skill.CertificateURL) {
+//           const oldCertRel = skill.CertificateURL.replace(/^\//, "");
+//           const oldCertPath = path.join(process.cwd(), oldCertRel);
+//           if (fs.existsSync(oldCertPath)) fs.unlinkSync(oldCertPath);
+//         }
+//       } catch (e) {
+//         console.warn("Could not remove old certificate:", e && e.message ? e.message : e);
+//       }
+
+//       const certFile = req.files.Certificate[0];
+//       skill.CertificateURL = `/uploads/certificates/${certFile.filename}`;
+//       skill.CertificateStatus = "Pending";
+//     }
+
+//     // If user uploaded a full PDF (ContentFile), replace existing content file with uploaded one.
+//     if (req.files?.ContentFile?.[0]) {
+//       try {
+//         if (skill.ContentFileURL) {
+//           const oldRel = skill.ContentFileURL.replace(/^\//, "");
+//           const oldPath = path.join(process.cwd(), oldRel);
+//           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+//         }
+//       } catch (e) {
+//         console.warn("Could not remove old content file:", e && e.message ? e.message : e);
+//       }
+
+//       const contentFile = req.files.ContentFile[0];
+//       skill.ContentFileURL = `/uploads/contentfiles/${contentFile.filename}`;
+//       // Note: we do NOT regenerate PDF here because user uploaded final PDF directly.
+//     }
+
+//     // -------------------------
+//     // Decide whether to regenerate PDF from EditedText / TemplateType / TemplateImage
+//     // -------------------------
+//     const templateTypeFromBody = (req.body && req.body.TemplateType) ? String(req.body.TemplateType).trim() : "";
+//     const text = String(EditedText || "").trim();
+
+//     // Prefer explicit template type from frontend; fall back to heuristics
+//     let templateType = "main";
+//     if (templateTypeFromBody) {
+//       templateType = templateTypeFromBody; // trusted value (main|sub|image|plain)
+//     } else {
+//       if (text.includes("-") && text.includes(",")) templateType = "sub";
+//       else if (text.includes("✓")) templateType = "main";
+//       else if (!text.includes(",") && !text.includes("-")) templateType = "plain";
+//       else templateType = "main";
+//     }
+
+//     // Resolve template image path (if uploaded)
+//     const templateImgFile = req.files?.TemplateImage?.[0] || null;
+//     let templateImagePath = null;
+//     if (templateImgFile) {
+//       // prefer multer-provided path if present
+//       if (templateImgFile.path && typeof templateImgFile.path === "string" && fs.existsSync(templateImgFile.path)) {
+//         templateImagePath = templateImgFile.path;
+//       } else {
+//         // fallback candidate in uploads/contentfiles
+//         const candidate = path.join(process.cwd(), "uploads", "contentfiles", templateImgFile.filename || "");
+//         if (candidate && fs.existsSync(candidate)) templateImagePath = candidate;
+//         else {
+//           // last-ditch candidate: file name at project root
+//           const alt = path.join(process.cwd(), templateImgFile.filename || "");
+//           if (fs.existsSync(alt)) templateImagePath = alt;
+//         }
+//       }
+//     }
+
+//     console.log("Resolved template info:", {
+//       templateTypeFromBody,
+//       textPreview: text.slice(0, 120),
+//       resolvedTemplateType: templateType,
+//       templateImagePath,
+//     });
+
+//     // Only regenerate when there is EditedText (or when template is image and we have something to render)
+//     const shouldGenerate =
+//       (text && text.trim()) ||
+//       (templateType === "image" && (templateImagePath || text.trim()));
+
+//     if (shouldGenerate) {
+//       // try to find related Skill and Category docs for title/header in PDF
+//       const skillDoc = await Skill.findOne({ SkillId: skill.SkillId });
+//       const categoryDoc = skillDoc ? await Category.findOne({ CategoryId: skillDoc.CategoryId }) : null;
+
+//       // delete old content file only because we will create a new one
+//       try {
+//         if (skill.ContentFileURL) {
+//           const oldRel = skill.ContentFileURL.replace(/^\//, "");
+//           const oldPath = path.join(process.cwd(), oldRel);
+//           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+//         }
+//       } catch (e) {
+//         console.warn("Could not remove old autogenerated content file:", e && e.message ? e.message : e);
+//       }
+
+//       const fileName = `content_${skill.UserId}_${Date.now()}.pdf`;
+//       const outputPdfPath = path.join("uploads", "contentfiles", fileName);
+
+//       try {
+//         await generatePdfForSkill({
+//           outputPdfPath,
+//           logoPath: path.join(process.cwd(), "uploads", "logo.png"),
+//           categoryName: categoryDoc?.CategoryName || "",
+//           skillName: skillDoc?.Name || "",
+//           templateType,
+//           templateData: text,
+//           templateImagePath,
+//         });
+//       } catch (genErr) {
+//         console.error("generatePdfForSkill failed:", genErr && (genErr.stack || genErr.message || genErr));
+//         return res.status(500).json({
+//           success: false,
+//           message: "Failed to generate content PDF",
+//           error: String(genErr && (genErr.message || genErr)),
+//         });
+//       }
+
+//       skill.ContentFileURL = `/uploads/contentfiles/${fileName}`;
+//     } else {
+//       console.log("No EditedText/template data to generate PDF. Keeping existing ContentFileURL.");
+//     }
+
+//     await skill.save();
+
+//     console.log("updateUserSkill finished for:", skillId);
+//     return res.json({ success: true, message: "Skill updated", data: skill });
+//   } catch (err) {
+//     console.error("UpdateSkill Error:", err && (err.stack || err.message || err));
+//     return res.status(500).json({ success: false, message: err.message || "Server error" });
+//   }
+// };
+
+// /* -----------------------------------------------------------
+//    DISABLE SKILL (Only if NO active swap exists)
+// ----------------------------------------------------------- */
+// export const disableSkill = async (req, res) => {
+//   try {
+//     const { skillId } = req.params;
+
+//     const skill = await UserSkill.findById(skillId);
+//     if (!skill) return res.json({ success: false, message: "Skill not found." });
+
+//     const activeSwap = await SkillSwap.findOne({ SkillId: skill.SkillId, Status: "Active" });
+//     if (activeSwap) return res.json({ success: false, message: "Cannot disable skill until active swap is completed." });
+
+//     skill.SkillAvailability = "Unavailable";
+//     await skill.save();
+
+//     return res.json({ success: true, message: "Skill disabled successfully." });
+//   } catch (err) {
+//     console.error("Disable Skill Error:", err);
+//     res.json({ success: false, message: "Server error" });
+//   }
+// };
+
+// /* -----------------------------------------------------------
+//    REACTIVATE SKILL
+// ----------------------------------------------------------- */
+// export const reactivateSkill = async (req, res) => {
+//   try {
+//     const { skillId } = req.params;
+
+//     const skill = await UserSkill.findById(skillId);
+//     if (!skill) return res.json({ success: false, message: "Skill not found." });
+
+//     skill.SkillAvailability = "Available";
+//     await skill.save();
+
+//     return res.json({ success: true, message: "Skill reactivated successfully." });
+//   } catch (err) {
+//     console.error("Reactivate Skill Error:", err);
+//     res.json({ success: false, message: "Server error" });
+//   }
+// };
+
+
+// controllers/mySkillsController.js
+
 
 import fs from "fs";
 import path from "path";
-import mongoose from "mongoose";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+
+// pdf-parse compatibility (CJS/ESM)
+const _pdfParseModule = require("pdf-parse");
+const pdfParse = (_pdfParseModule && _pdfParseModule.default) ? _pdfParseModule.default : _pdfParseModule;
+
 import UserSkill from "../models/UserSkill.js";
 import SkillSwap from "../models/SkillSwap.js";
 import Skill from "../models/Skill.js";
 import Category from "../models/SkillCategory.js";
 
-
 import PDFDocument from "pdfkit";
+
+// ---------- Multer setup (paste here, below existing imports) ----------
+import multer from "multer";
+
+const _root = process.cwd();
+const _uploads = path.join(_root, "uploads");
+const _certs = path.join(_uploads, "certificates");
+const _content = path.join(_uploads, "contentfiles");
+const _templates = path.join(_uploads, "templateimages");
+
+// ensure upload folders exist
+[_uploads, _certs, _content, _templates].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (file.fieldname === "Certificate") return cb(null, _certs);
+    if (file.fieldname === "ContentFile") return cb(null, _content);
+    if (file.fieldname === "TemplateImage") return cb(null, _templates);
+    return cb(null, _uploads);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || "";
+    const name = `${file.fieldname}_${Date.now()}${ext}`;
+    cb(null, name);
+  },
+});
+
+const fileFilter = (req, file, cb) => {
+  try {
+    if (file.fieldname === "Certificate" || file.fieldname === "ContentFile") {
+      // only allow PDFs for these fields
+      if (file.mimetype !== "application/pdf") return cb(new Error("Only PDF allowed for Certificate/ContentFile"), false);
+    }
+    if (file.fieldname === "TemplateImage") {
+      // images only
+      if (!file.mimetype.startsWith("image/")) return cb(new Error("TemplateImage must be an image"), false);
+    }
+    cb(null, true);
+  } catch (e) {
+    cb(e, false);
+  }
+};
+
+const limits = {
+  fileSize: 10 * 1024 * 1024, // 10 MB per file (adjust if needed)
+};
+
+const upload = multer({ storage, fileFilter, limits });
+
+// allow Certificate, ContentFile and TemplateImage (max 1 each)
+export const uploadFields = upload.fields([
+  { name: "Certificate", maxCount: 1 },
+  { name: "ContentFile", maxCount: 1 },
+  { name: "TemplateImage", maxCount: 1 },
+]);
+// ---------------------------------------------------------------------
+
+// async function generatePdfForSkill({
+//   outputPdfPath,
+//   logoPath = null,
+//   categoryName = "",
+//   skillName = "",
+//   templateType = "main",
+//   templateData = "",
+//   templateImagePath = null,
+// }) {
+//   return new Promise((resolve, reject) => {
+//     try {
+//       const dir = path.dirname(outputPdfPath);
+//       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+//       const doc = new PDFDocument({ margin: 40, size: "A4" });
+//       const outStream = fs.createWriteStream(outputPdfPath);
+//       doc.pipe(outStream);
+
+//       // Header: logo left
+//       if (logoPath && fs.existsSync(logoPath)) {
+//         try {
+//           doc.image(logoPath, doc.page.margins.left, 30, { width: 90 });
+//         } catch (e) {
+//           console.warn("Logo render failed:", e && e.message ? e.message : e);
+//         }
+//       }
+
+//       // Title block (right)
+//       const titleWidth = 250;
+//       const titleX = doc.page.width - doc.page.margins.right - titleWidth;
+//       doc.fontSize(18).fillColor("#0B3D91").text(skillName || "Skill", titleX, 40, { width: titleWidth, align: "right" });
+//       if (categoryName) {
+//         doc.moveDown(0.2).fontSize(10).fillColor("#666").text(categoryName, { align: "right" });
+//       }
+//       doc.moveDown(1.2);
+
+//       // divider
+//       const startX = doc.page.margins.left;
+//       const endX = doc.page.width - doc.page.margins.right;
+//       doc.moveTo(startX, doc.y).lineTo(endX, doc.y).strokeColor("#E0E0E0").stroke();
+//       doc.moveDown(0.8);
+
+//       const text = String(templateData || "").trim();
+
+//       if (templateType === "image") {
+//         // embed image (if provided)
+//         if (templateImagePath && fs.existsSync(templateImagePath)) {
+//           try {
+//             const maxImgWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+//             doc.image(templateImagePath, { fit: [maxImgWidth, 300], align: "center" });
+//             doc.moveDown(0.8);
+//           } catch (e) {
+//             console.warn("Template image render failed:", e && e.message ? e.message : e);
+//           }
+//         } else {
+//           // If template image path missing, warn but continue
+//           if (templateType === "image") {
+//             console.warn("generatePdfForSkill: templateImagePath not found or not provided for image template.");
+//           }
+//         }
+//         if (text) {
+//           doc.fontSize(11).fillColor("#222").text(text, { align: "left", paragraphGap: 6 });
+//         }
+//       } else if (templateType === "sub") {
+//         // each non-empty line: Main - sub1, sub2
+//         const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+//         doc.fontSize(12).fillColor("#222");
+//         for (const line of lines) {
+//           const [mainPart, subPart] = line.split("-").map(p => p && p.trim());
+//           if (mainPart) {
+//             doc.fontSize(12).fillColor("#0B3D91").text(`• ${mainPart}`);
+//             if (subPart) {
+//               const subItems = subPart.split(",").map(s => s.trim()).filter(Boolean);
+//               if (subItems.length) {
+//                 doc.moveDown(0.15);
+//                 doc.fontSize(11).fillColor("#333");
+//                 // render subitems as a small bulleted list
+//                 subItems.forEach((si) => {
+//                   // use a tiny indent bullet
+//                   doc.list([si], { bulletRadius: 2, textIndent: 12 });
+//                 });
+//               }
+//             }
+//             doc.moveDown(0.6);
+//           }
+//         }
+//       } else if (templateType === "plain") {
+//         doc.fontSize(11).fillColor("#222").text(text, { align: "left", paragraphGap: 6 });
+//       } else {
+//         // default: main topics (comma separated) with checkmarks
+//         const topics = text.split(",").map(t => t.trim()).filter(Boolean);
+//         doc.fontSize(12).fillColor("#222");
+//         for (const t of topics) {
+//           doc.moveDown(0.25);
+//           doc.fontSize(11).fillColor("#00703C").text(`✓  ${t}`, { continued: false });
+//         }
+//       }
+
+//       doc.moveDown(2);
+//       doc.fontSize(9).fillColor("#888").text("Generated by SkillSwap", { align: "center" });
+
+//       doc.end();
+
+//       outStream.on("finish", () => resolve(true));
+//       outStream.on("error", (err) => reject(err));
+//     } catch (err) {
+//       reject(err);
+//     }
+//   });
+// }
+// place this near top of file if not already:
+// import PDFDocument from "pdfkit";
+// import fs from "fs";
+// import path from "path";
+
+const ensureDir = (p) => {
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+};
+
+const generatePdfForSkill = async ({
+  outputPdfPath,
+  logoPath,
+  categoryName,
+  skillName,
+  templateType = "main",
+  templateData = "",
+  templateImagePath = null,
+}) => {
+  return new Promise((resolve, reject) => {
+    try {
+      ensureDir(path.dirname(outputPdfPath));
+      const doc = new PDFDocument({ margin: 40, size: "A4" });
+      const writeStream = fs.createWriteStream(outputPdfPath);
+      doc.pipe(writeStream);
+
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      const leftMargin = doc.page.margins.left;
+      const rightMargin = doc.page.margins.right;
+      const usableWidth = pageWidth - leftMargin - rightMargin;
+
+      // --- Header: logo centered top (if exists) ---
+      const headerY = 30;
+      if (logoPath && fs.existsSync(logoPath)) {
+        try {
+          const logoMaxW = Math.min(120, Math.floor(usableWidth * 0.25));
+          // draw centered
+          doc.image(logoPath, (pageWidth - logoMaxW) / 2, headerY, { width: logoMaxW });
+        } catch (e) {
+          console.warn("Logo render failed:", e && e.message ? e.message : e);
+        }
+      }
+
+      // small gap, then title
+      doc.moveDown(6);
+      doc.fontSize(20).fillColor("#1f2937").text("Skill Content Summary", { align: "center" });
+      doc.moveDown(0.5);
+
+      // Category & Skill line (left)
+      doc.fontSize(12).fillColor("#4b5563").text(`Category: ${categoryName || "N/A"}`, leftMargin);
+      doc.fontSize(12).fillColor("#4b5563").text(`Skill: ${skillName || "N/A"}`, leftMargin);
+      doc.moveDown(0.6);
+
+      // Divider
+      doc.moveTo(leftMargin, doc.y).lineTo(pageWidth - rightMargin, doc.y).strokeColor("#e5e7eb").stroke();
+      doc.moveDown(0.8);
+
+      // sanitize templateData:
+      let text = String(templateData || "").trim();
+// remove control chars except newline/tab
+      text = text.replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\uFFFF]/g, "");
+      // decode common entity for ampersand then replace any & runs with " and "
+      text = text.replace(/&amp;/gi, "&");
+      text = text.replace(/&+/g, " and ");
+      // collapse multiple spaces but preserve newlines
+      text = text.split("\n").map(l => l.replace(/\s+/g, " ").trim()).join("\n").trim();
+
+      const contentStartY = doc.y;
+      // compute footer Y absolute so we can center image vertically in remaining area
+      const footerY = pageHeight - doc.page.margins.bottom - 36; // about 36px above bottom
+
+      // === IMAGE handling (if templateType === 'image') ===
+      let imageDrawn = false;
+      if (templateType === "image" && templateImagePath && fs.existsSync(templateImagePath)) {
+        try {
+          // pdfkit can open image to get dimensions
+          const img = doc.openImage(templateImagePath); // returns {width, height, ...}
+          if (img && img.width && img.height) {
+            const maxImgW = Math.min(420, Math.floor(usableWidth * 0.9)); // allow large centered image
+            const maxImgH = Math.min(360, Math.floor(footerY - contentStartY - 10)); // leave space to footer
+            // compute scale preserving aspect
+            const wScale = maxImgW / img.width;
+            const hScale = maxImgH / img.height;
+            const scale = Math.min(1, wScale, hScale);
+            const drawW = Math.round(img.width * scale);
+            const drawH = Math.round(img.height * scale);
+
+            // center image horizontally and vertically within content box
+            const availableH = Math.max(80, footerY - contentStartY - 10);
+            const top = contentStartY + Math.max(0, Math.floor((availableH - drawH) / 2));
+            const left = Math.round((pageWidth - drawW) / 2);
+            doc.image(templateImagePath, left, top, { fit: [drawW, drawH], align: "center", valign: "center" });
+
+            // Move doc.y to below image (so following content doesn't overlap)
+            doc.y = top + drawH + 12;
+            imageDrawn = true;
+          } else {
+            // fallback: try to draw with fit only
+            doc.image(templateImagePath, { fit: [420, 320], align: "center", valign: "center" });
+            doc.moveDown(1);
+            imageDrawn = true;
+          }
+        } catch (e) {
+          console.warn("Template image error:", e && e.message ? e.message : e);
+          // fallback: indicate no image
+          doc.fontSize(12).fillColor("#6b7280").text("[Image not available]", { align: "center" });
+          doc.moveDown(1);
+        }
+      }
+
+      // If image template: show Description heading and text below (if any)
+      if (templateType === "image") {
+        doc.fontSize(14).fillColor("#111827").text("Description", { underline: true });
+        doc.moveDown(0.4);
+        if (text) {
+          doc.fontSize(12).fillColor("#374151").text(text, { align: "justify", paragraphGap: 6 });
+        } else {
+          doc.fontSize(12).fillColor("#9CA3AF").text("[No description provided]", { align: "center" });
+        }
+      } else if (templateType === "main") {
+        // TEMPLATE: main (comma separated)
+        doc.fontSize(14).fillColor("#111827").text("Main Topics", { underline: true });
+        doc.moveDown(0.4);
+        const topics = text ? text.split(",").map((t) => t.trim()).filter(Boolean) : [];
+        if (topics.length) {
+          topics.forEach((t) => {
+            doc.fontSize(12).fillColor("#111827").text("✓ " + t);
+          });
+        } else {
+          doc.fontSize(12).fillColor("#9CA3AF").text("[No topics provided]");
+        }
+      } else if (templateType === "sub") {
+        // TEMPLATE: sub (topic - subtopics per line)
+        doc.fontSize(14).fillColor("#111827").text("Topics Breakdown", { underline: true });
+        doc.moveDown(0.4);
+        const lines = text ? text.split("\n").map((l) => l.trim()).filter(Boolean) : [];
+        if (lines.length) {
+          lines.forEach((line) => {
+            const parts = line.split("-");
+            const topic = (parts[0] || "").trim();
+            const subStr = (parts.slice(1).join("-") || "").trim();
+            if (topic) {
+              doc.fontSize(13).fillColor("#0f172a").text("• " + topic);
+              if (subStr) {
+                const subs = subStr.split(",").map((s) => s.trim()).filter(Boolean);
+                subs.forEach((sub) => {
+                  doc.fontSize(12).fillColor("#374151").text("   → " + sub, { indent: 20 });
+                });
+              }
+              doc.moveDown(0.2);
+            }
+          });
+        } else {
+          doc.fontSize(12).fillColor("#9CA3AF").text("[No breakdown provided]");
+        }
+      } else {
+        // fallback plain
+        if (text) {
+          doc.fontSize(12).fillColor("#111827").text(text, { align: "left" });
+        } else {
+          doc.fontSize(12).fillColor("#9CA3AF").text("[No content provided]");
+        }
+      }
+
+      // --- Footer: draw a divider then footer text near bottom (absolute) ---
+      const dividerY = footerY - 24;
+      doc.moveTo(leftMargin, dividerY).lineTo(pageWidth - rightMargin, dividerY).strokeColor("#e5e7eb").stroke();
+
+      const footerText = `Generated by SkillSwap | ${new Date().getFullYear()}`;
+      doc.fontSize(10).fillColor("#9ca3af");
+      doc.text(footerText, leftMargin, footerY, { width: usableWidth, align: "center" });
+
+      // finalize
+      doc.end();
+
+      writeStream.on("finish", () => {
+        resolve();
+      });
+      writeStream.on("error", (err) => {
+        reject(err);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+};
+
 /* ----------------------------------------------------------
    GET USER SKILLS
 ----------------------------------------------------------- */
@@ -26,26 +932,23 @@ export const getUserSkills = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const skills = await UserSkill.find({ UserId: userId }).sort({
-      AddedDate: -1,
-    });
+    const skills = await UserSkill.find({ UserId: userId }).sort({ AddedDate: -1 });
 
     const skillData = await Promise.all(
       skills.map(async (userSkill) => {
         const skill = await Skill.findOne({ SkillId: userSkill.SkillId });
-        const category = skill
-          ? await Category.findOne({ CategoryId: skill.CategoryId })
-          : null;
+        const category = skill ? await Category.findOne({ CategoryId: skill.CategoryId }) : null;
 
         return {
           _id: userSkill._id,
           SkillId: userSkill.SkillId,
+          CategoryId: skill?.CategoryId || null,
           SkillName: skill?.Name || "Unknown Skill",
           CategoryName: category?.CategoryName || "Unknown Category",
           CertificateURL: userSkill.CertificateURL,
           ContentFileURL: userSkill.ContentFileURL,
           Source: userSkill.Source,
-          Status: userSkill.SkillAvailability, // ⭐ For disable/activate
+          Status: userSkill.SkillAvailability,
           CertificateStatus: userSkill.CertificateStatus,
         };
       })
@@ -83,111 +986,203 @@ export const addUserSkill = async (req, res) => {
   }
 };
 
-
+/* ----------------------------------------------------------
+   GET PDF CONTENT (parse existing pdf)
+----------------------------------------------------------- */
 export const getPdfContent = async (req, res) => {
   try {
     const { skillId } = req.params;
 
     const skill = await UserSkill.findById(skillId);
-    if (!skill || !skill.ContentFileURL)
-      return res.status(404).json({ success: false, message: "PDF not found" });
+    if (!skill || !skill.ContentFileURL) return res.status(404).json({ success: false, message: "PDF not found" });
 
-    const filePath = path.join(
-      process.cwd(),
-      skill.ContentFileURL.replace("/", "")
-    );
+    const rel = String(skill.ContentFileURL || "").replace(/^\//, "");
+    const filePath = path.join(process.cwd(), rel);
 
-    if (!fs.existsSync(filePath))
-      return res.status(404).json({ success: false, message: "PDF file missing" });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: "PDF file missing" });
 
     const dataBuffer = fs.readFileSync(filePath);
 
-    // 🔥 NOW pdfParse IS A FUNCTION
-    const parsed = await pdfParse(dataBuffer);
+    if (typeof pdfParse !== "function") {
+      console.error("pdfParse is not available as function.");
+      return res.status(500).json({ success: false, message: "PDF parser not available on server." });
+    }
 
+    const parsed = await pdfParse(dataBuffer);
     return res.json({
       success: true,
-      text: parsed.text || "",
+      text: parsed && parsed.text ? String(parsed.text) : "",
       templateType: "main",
     });
   } catch (err) {
-    console.error("PDF read error:", err);
+    console.error("PDF read error:", err && (err.stack || err.message || err));
     res.status(500).json({ success: false, message: "Failed to read PDF" });
   }
 };
 
-
-
-/* ----------------------------------------------------------
-   UPDATE SKILL
------------------------------------------------------------ */
-
-
 export const updateUserSkill = async (req, res) => {
   try {
+    console.log("updateUserSkill called:", {
+      params: req.params,
+      body: req.body,
+      filesKeys: req.files ? Object.keys(req.files) : null,
+      filesPreview: req.files
+        ? Object.fromEntries(
+            Object.entries(req.files).map(([k, v]) => [
+              k,
+              v && v[0] ? { originalname: v[0].originalname, filename: v[0].filename, path: v[0].path, size: v[0].size } : null,
+            ])
+          )
+        : {},
+    });
+
     const { skillId } = req.params;
-    const { Source, EditedText } = req.body;
+    const { Source, EditedText, SkillId: incomingSkillId } = req.body;
 
     const skill = await UserSkill.findById(skillId);
     if (!skill) return res.status(404).json({ success: false, message: "Skill not found" });
 
-    if (Source !== undefined) skill.Source = Source;
+    // simple fields
+    if (Source !== undefined) skill.Source = Source === "" ? null : Source;
+    if (incomingSkillId !== undefined && incomingSkillId !== "") {
+      const parsed = Number(incomingSkillId);
+      skill.SkillId = Number.isFinite(parsed) ? parsed : incomingSkillId;
+    }
 
-    // --- Certificate Update ---
+    // Certificate file uploaded -> replace
     if (req.files?.Certificate?.[0]) {
-      skill.CertificateURL = `/uploads/certificates/${req.files.Certificate[0].filename}`;
+      try {
+        if (skill.CertificateURL) {
+          const oldCertRel = skill.CertificateURL.replace(/^\//, "");
+          const oldCertPath = path.join(process.cwd(), oldCertRel);
+          if (fs.existsSync(oldCertPath)) fs.unlinkSync(oldCertPath);
+        }
+      } catch (e) {
+        console.warn("Could not remove old certificate:", e && e.message ? e.message : e);
+      }
+
+      const certFile = req.files.Certificate[0];
+      skill.CertificateURL = `/uploads/certificates/${certFile.filename}`;
       skill.CertificateStatus = "Pending";
     }
 
-    // --- PDF Content Editing ---
-    if (EditedText && EditedText.trim()) {
-      // Delete old PDF
-      if (skill.ContentFileURL) {
-        const rel = skill.ContentFileURL.replace(/^\//, "");
-        const oldPath = path.join(process.cwd(), rel);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    // If user uploaded a full PDF (ContentFile), replace existing content file with uploaded one.
+    if (req.files?.ContentFile?.[0]) {
+      try {
+        if (skill.ContentFileURL) {
+          const oldRel = skill.ContentFileURL.replace(/^\//, "");
+          const oldPath = path.join(process.cwd(), oldRel);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+      } catch (e) {
+        console.warn("Could not remove old content file:", e && e.message ? e.message : e);
       }
 
-      // Detect template on save
-      let templateType = "main";
-      const text = EditedText;
+      const contentFile = req.files.ContentFile[0];
+      skill.ContentFileURL = `/uploads/contentfiles/${contentFile.filename}`;
+      // Note: we do NOT regenerate PDF here because user uploaded final PDF directly.
+    }
 
+    // -------------------------
+    // Decide whether to regenerate PDF from EditedText / TemplateType / TemplateImage
+    // -------------------------
+    const templateTypeFromBody = (req.body && req.body.TemplateType) ? String(req.body.TemplateType).trim() : "";
+    const text = String(EditedText || "").trim();
+
+    // Prefer explicit template type from frontend; fall back to heuristics
+    let templateType = "main";
+    if (templateTypeFromBody) {
+      templateType = templateTypeFromBody; // trusted value (main|sub|image|plain)
+    } else {
       if (text.includes("-") && text.includes(",")) templateType = "sub";
-      if (text.includes("✓")) templateType = "main";
-      if (!text.includes(",") && !text.includes("-")) templateType = "plain";
+      else if (text.includes("✓")) templateType = "main";
+      else if (!text.includes(",") && !text.includes("-")) templateType = "plain";
+      else templateType = "main";
+    }
 
-      // Fetch skill/category names
+    // Resolve template image path (if uploaded)
+    const templateImgFile = req.files?.TemplateImage?.[0] || null;
+    let templateImagePath = null;
+    if (templateImgFile) {
+      // prefer multer-provided path if present
+      if (templateImgFile.path && typeof templateImgFile.path === "string" && fs.existsSync(templateImgFile.path)) {
+        templateImagePath = templateImgFile.path;
+      } else {
+        // fallback candidate in uploads/contentfiles
+        const candidate = path.join(process.cwd(), "uploads", "contentfiles", templateImgFile.filename || "");
+        if (candidate && fs.existsSync(candidate)) templateImagePath = candidate;
+        else {
+          // last-ditch candidate: file name at project root
+          const alt = path.join(process.cwd(), templateImgFile.filename || "");
+          if (fs.existsSync(alt)) templateImagePath = alt;
+        }
+      }
+    }
+
+    console.log("Resolved template info:", {
+      templateTypeFromBody,
+      textPreview: text.slice(0, 120),
+      resolvedTemplateType: templateType,
+      templateImagePath,
+    });
+
+    // Only regenerate when there is EditedText (or when template is image and we have something to render)
+    const shouldGenerate =
+      (text && text.trim()) ||
+      (templateType === "image" && (templateImagePath || text.trim()));
+
+    if (shouldGenerate) {
+      // try to find related Skill and Category docs for title/header in PDF
       const skillDoc = await Skill.findOne({ SkillId: skill.SkillId });
-      const categoryDoc = await Category.findOne({ CategoryId: skillDoc.CategoryId });
+      const categoryDoc = skillDoc ? await Category.findOne({ CategoryId: skillDoc.CategoryId }) : null;
 
-      // Generate new PDF
+      // delete old content file only because we will create a new one
+      try {
+        if (skill.ContentFileURL) {
+          const oldRel = skill.ContentFileURL.replace(/^\//, "");
+          const oldPath = path.join(process.cwd(), oldRel);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+      } catch (e) {
+        console.warn("Could not remove old autogenerated content file:", e && e.message ? e.message : e);
+      }
+
       const fileName = `content_${skill.UserId}_${Date.now()}.pdf`;
       const outputPdfPath = path.join("uploads", "contentfiles", fileName);
 
-      await generatePdfForSkill({
-        outputPdfPath,
-        logoPath: path.join(process.cwd(), "uploads/logo.png"),
-        categoryName: categoryDoc?.CategoryName || "",
-        skillName: skillDoc?.Name || "",
-        templateType,
-        templateData: text,
-        templateImagePath: null,
-      });
+      try {
+        await generatePdfForSkill({
+          outputPdfPath,
+          logoPath: path.join(process.cwd(), "uploads", "logo.png"),
+          categoryName: categoryDoc?.CategoryName || "",
+          skillName: skillDoc?.Name || "",
+          templateType,
+          templateData: text,
+          templateImagePath,
+        });
+      } catch (genErr) {
+        console.error("generatePdfForSkill failed:", genErr && (genErr.stack || genErr.message || genErr));
+        return res.status(500).json({
+          success: false,
+          message: "Failed to generate content PDF",
+          error: String(genErr && (genErr.message || genErr)),
+        });
+      }
 
-      skill.ContentFileURL = "/uploads/contentfiles/" + fileName;
+      skill.ContentFileURL = `/uploads/contentfiles/${fileName}`;
+    } else {
+      console.log("No EditedText/template data to generate PDF. Keeping existing ContentFileURL.");
     }
 
     await skill.save();
-    res.json({ success: true, message: "Skill updated", data: skill });
 
+    console.log("updateUserSkill finished for:", skillId);
+    return res.json({ success: true, message: "Skill updated", data: skill });
   } catch (err) {
-    console.error("UpdateSkill Error:", err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error("UpdateSkill Error:", err && (err.stack || err.message || err));
+    return res.status(500).json({ success: false, message: err.message || "Server error" });
   }
 };
-
-
-
 
 /* -----------------------------------------------------------
    DISABLE SKILL (Only if NO active swap exists)
@@ -197,31 +1192,15 @@ export const disableSkill = async (req, res) => {
     const { skillId } = req.params;
 
     const skill = await UserSkill.findById(skillId);
-    if (!skill) {
-      return res.json({ success: false, message: "Skill not found." });
-    }
+    if (!skill) return res.json({ success: false, message: "Skill not found." });
 
-    // 🔍 Check Active Swap for this SkillId
-    const activeSwap = await SkillSwap.findOne({
-      SkillId: skill.SkillId,
-      Status: "Active",
-    });
+    const activeSwap = await SkillSwap.findOne({ SkillId: skill.SkillId, Status: "Active" });
+    if (activeSwap) return res.json({ success: false, message: "Cannot disable skill until active swap is completed." });
 
-    if (activeSwap) {
-      return res.json({
-        success: false,
-        message: "Cannot disable skill until active swap is completed.",
-      });
-    }
-
-    // 🔥 Update Availability
-    skill.SkillAvailability = "Unavailable"; 
+    skill.SkillAvailability = "Unavailable";
     await skill.save();
 
-    return res.json({
-      success: true,
-      message: "Skill disabled successfully.",
-    });
+    return res.json({ success: true, message: "Skill disabled successfully." });
   } catch (err) {
     console.error("Disable Skill Error:", err);
     res.json({ success: false, message: "Server error" });
@@ -236,17 +1215,12 @@ export const reactivateSkill = async (req, res) => {
     const { skillId } = req.params;
 
     const skill = await UserSkill.findById(skillId);
-    if (!skill) {
-      return res.json({ success: false, message: "Skill not found." });
-    }
+    if (!skill) return res.json({ success: false, message: "Skill not found." });
 
     skill.SkillAvailability = "Available";
     await skill.save();
 
-    return res.json({
-      success: true,
-      message: "Skill reactivated successfully.",
-    });
+    return res.json({ success: true, message: "Skill reactivated successfully." });
   } catch (err) {
     console.error("Reactivate Skill Error:", err);
     res.json({ success: false, message: "Server error" });
