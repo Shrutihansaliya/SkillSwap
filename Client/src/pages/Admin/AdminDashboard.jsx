@@ -10,6 +10,8 @@ import UpdateProfile from "./UpdateProfile.jsx";
 import Members from "./Members.jsx";
 import ChangePassword from "./ChangePassword.jsx";
 import SubscriptionPlans from "./SubscriptionPlans.jsx";
+import SkillRequestsFromUser from "./SkillRequestsFromUser.jsx";
+
 import AddCity from "./AddCity.jsx";
 import AdminReports from "./AdminReports.jsx";
 import AdminPaymentView from "./AdminPaymentView.jsx";
@@ -316,6 +318,8 @@ function DashboardContent() {
             <NavTab page="adminpaymentview" label="Payments" />
             <NavTab page="reports" label="Complaints" />
             <NavTab page="adminSwaps" label="Swap Management" />
+            <NavTab page="skillRequests" label="Skill Requests" />
+
           </div>
         </div>
       </header>
@@ -347,6 +351,8 @@ function DashboardContent() {
           {activePage === "addCity" && <AddCity />}
           {activePage === "adminpaymentview" && <AdminPaymentView />}
           {activePage === "adminSwaps" && <AdminSwapManagement />}
+          {activePage === "skillRequests" && <SkillRequestsFromUser />}
+
         </div>
       </main>
     </div>

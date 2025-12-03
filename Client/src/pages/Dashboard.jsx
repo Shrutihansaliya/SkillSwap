@@ -28,6 +28,8 @@ import Notifications from "./Notifications.jsx";
 import Overview from "./Overview.jsx";
 import MySkill from "./MySkill.jsx";
 
+// ⭐ NEW IMPORT
+import SkillRequest from "./SkillRequest.jsx";
 function Dashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState(null);
