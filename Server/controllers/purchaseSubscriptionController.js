@@ -160,33 +160,62 @@ export const purchaseSubscription = async (req, res) => {
 // GET ALL SUBSCRIPTIONS OF USER
 
 
+// export const getUserSubscription = async (req, res) => {
+//   try {
+//     const userId = req.params.userId;
+
+//     const subs = await Subscription.find({ UserId: userId })
+//       .populate("PlanId")
+//       .sort({ StartDate: -1 });
+
+//    const active = subs.find((s) => s.Status?.toLowerCase() === "active") || null;
+// const upcoming = subs.find((s) => s.Status?.toLowerCase() === "upcoming") || null;
+
+
+//     console.log("📌 All Subs:", subs);
+//     console.log("📌 Active:", active);
+//     console.log("📌 Upcoming:", upcoming);
+
+//     return res.json({
+//       success: true,
+//       activePlan: active,
+//       upcomingPlan: upcoming,
+//       allSubscriptions: subs,
+//     });
+//   } catch (err) {
+//     console.log("getUserSubscription error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch user subscription",
+//     });
+//   }
+// };
+
 export const getUserSubscription = async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const { userId } = req.params;
 
     const subs = await Subscription.find({ UserId: userId })
       .populate("PlanId")
-      .sort({ StartDate: -1 });
+      .sort({ createdAt: 1 });
 
-   const active = subs.find((s) => s.Status?.toLowerCase() === "active") || null;
-const upcoming = subs.find((s) => s.Status?.toLowerCase() === "upcoming") || null;
+    // Return ALL active plans  
+    const activePlans = subs.filter(s => s.Status === "Active");
 
-
-    console.log("📌 All Subs:", subs);
-    console.log("📌 Active:", active);
-    console.log("📌 Upcoming:", upcoming);
+    // Return ALL upcoming plans  
+    const upcomingPlans = subs.filter(s => s.Status === "Upcoming");
 
     return res.json({
       success: true,
-      activePlan: active,
-      upcomingPlan: upcoming,
-      allSubscriptions: subs,
+      activePlans,
+      upcomingPlans
     });
+
   } catch (err) {
-    console.log("getUserSubscription error:", err);
+    console.error("Error loading subscription:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch user subscription",
+      message: "Failed to load subscription"
     });
   }
 };

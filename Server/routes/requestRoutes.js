@@ -20,13 +20,15 @@ const router = express.Router();
 
 router.post("/send", sendRequest);
 router.delete("/cancel/:id", cancelRequest);
-router.get("/users/all", getAllMembersWithSkills);
+router.get("/members", getAllMembersWithSkills);
+router.get("/categories", getAllCategoriesWithSkills);
+// router.get("/users/all", getAllMembersWithSkills);
 router.get("/sent/:userId", getSentRequests);
 router.get("/received/:userId", getReceivedRequests);
 router.put("/status/:id", updateRequestStatus);
 router.get("/sender-skills/:senderId", getSenderSkills);
 router.put("/accept/:id", acceptRequest);
 router.post("/swap/confirm/:requestId", confirmSwap);
-router.get("/categories", getAllCategoriesWithSkills);
+// router.get("/categories", getAllCategoriesWithSkills);
 
 export default router;

@@ -25,8 +25,10 @@ function Overview({ userId }) {
     completedSwaps: 0,
   });
  // ⭐ Subscription State
-  const [activeSub, setActiveSub] = useState(null);
-  const [upcomingSub, setUpcomingSub] = useState(null);
+const [activeSub, setActiveSub] = useState([]);
+const [upcomingSub, setUpcomingSub] = useState([]);
+
+const firstActive = activeSub.length > 0 ? activeSub[0] : null;
 
   const [swapHistory, setSwapHistory] = useState([]);
   const [loadingSwaps, setLoadingSwaps] = useState(false);
@@ -51,8 +53,11 @@ const loadSubscription = async () => {
 
     console.log("📌 API Subscription Response =", res.data);
 
-    setActiveSub(res.data.activePlan || null);
-    setUpcomingSub(res.data.upcomingPlan || null);
+    // setActiveSub(res.data.activePlan || null);
+    // setUpcomingSub(res.data.upcomingPlan || null);
+    setActiveSub(res.data.activePlans || []);
+setUpcomingSub(res.data.upcomingPlans || []);
+
 
   } catch (err) {
     console.log("❌ Subscription load error:", err);
@@ -186,12 +191,13 @@ useEffect(() => {
   const getUserInitials = (username) => {
     return username ? username.charAt(0).toUpperCase() : '?';
   };
-
+const [cardIndex, setCardIndex] = useState(0);
+const totalCards = 1 + Math.max(upcomingSub.length, 1); // Active + upcoming (or "no upcoming" card)
   return (
     <div className="p-6">
           {/* ⭐ SUBSCRIPTION SECTION */}
-         {/* ⭐ SUBSCRIPTION SECTION */}
-      <div className=" rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+              {/* ⭐ SUBSCRIPTION SECTION */}
+      <div className="rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] rounded-md flex items-center justify-center">
@@ -210,77 +216,153 @@ useEffect(() => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Active Plan */}
-          <div className="bg-gradient-to-br from-[#F7F4EA]/80 to-white p-3 rounded-lg border border-[#A8BBA3]/30">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 bg-[#B87C4C] rounded-full flex items-center justify-center">
-                <FiCheckCircle className="text-white w-3 h-3" />
+        {/* Plan Cards Carousel */}
+        <div className="relative">
+          {/* Left Navigation Arrow */}
+          <button
+            onClick={() => setCardIndex(prev => Math.max(0, prev - 1))}
+            disabled={cardIndex === 0}
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-6 h-6 bg-white border border-gray-300 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+
+          {/* Cards Container */}
+          <div className="overflow-hidden">
+            <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${cardIndex * 100}%)` }}>
+              {/* Active Plan Card */}
+              <div className="w-full flex-shrink-0">
+                <div className="bg-gradient-to-br from-[#F7F4EA]/80 to-white p-3 rounded-lg border border-[#A8BBA3]/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 bg-[#B87C4C] rounded-full flex items-center justify-center">
+                      <FiCheckCircle className="text-white w-3 h-3" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-800">
+                        {firstActive ? firstActive.PlanId?.Name?.split(" ")[0] : "No Plan"}
+                      </h4>
+                      <p className="text-[10px] text-gray-500">Current</p>
+                    </div>
+                  </div>
+
+                  {firstActive && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-gray-500">Limit</span>
+                        <span className="text-xs font-bold text-[#B87C4C]">
+                          {firstActive.PlanId?.SwapLimit}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-gray-500">Left</span>
+                        <span className="text-xs font-bold text-[#8E5C32]">
+                          {firstActive.SwapsRemaining}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <h4 className="text-xs font-bold text-gray-800">
-                  {activeSub ? activeSub.PlanId?.Name?.split(' ')[0] || "Active" : "No Plan"}
-                </h4>
-                <p className="text-[10px] text-gray-500">Current</p>
-              </div>
+
+              {/* Upcoming Plan Cards */}
+              {upcomingSub.map((up, i) => (
+                <div key={up._id || i} className="w-full flex-shrink-0">
+                  <div className="p-3 rounded-lg border border-[#A8BBA3]/30 bg-gradient-to-br from-white to-[#F7F4EA]/80">
+                    <div className="mb-2 p-3 rounded-lg border border-[#B87C4C]/20 bg-gradient-to-br from-[#F7F4EA]/60 to-white">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 bg-[#8E5C32] rounded-full flex items-center justify-center">
+                          <FiCalendar className="text-white w-3 h-3" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-gray-800">
+                            Upcoming #{i + 1}
+                          </h4>
+                          <p className="text-[10px] text-gray-500">Scheduled</p>
+                        </div>
+                      </div>
+
+                      {/* Details */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-gray-500">Plan</span>
+                          <span className="text-xs font-medium text-[#8E5C32] truncate ml-1">
+                            {up?.PlanId?.Name || "—"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-gray-500">Swap Limit</span>
+                          <span className="text-xs font-medium text-[#8E5C32]">{up?.PlanId?.SwapLimit}</span>
+                        </div>
+
+                        <span className="text-[10px] bg-[#B87C4C]/10 text-[#8E5C32] px-1.5 py-0.5 rounded-full">
+                          Scheduled
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* No Upcoming Plans Card */}
+              {upcomingSub.length === 0 && (
+                <div className="w-full flex-shrink-0">
+                  <div className="p-3 rounded-lg border border-[#A8BBA3]/30 bg-gradient-to-br from-white to-[#F7F4EA]/80">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center">
+                        <FiCalendar className="text-white w-3 h-3" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-800">None</h4>
+                        <p className="text-[10px] text-gray-500">Upcoming</p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => (window.location.href = "/dashboard?tab=purchase")}
+                      className="text-[10px] text-[#B87C4C] hover:text-[#8E5C32] font-medium w-full text-center pt-1"
+                    >
+                      Browse →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-            
-            {activeSub && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-gray-500">Limit</span>
-                  <span className="text-xs font-bold text-[#B87C4C]">{activeSub.PlanId?.SwapLimit || "0"}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-gray-500">Left</span>
-                  <span className="text-xs font-bold text-[#8E5C32]">{activeSub.SwapsRemaining || "0"}</span>
-                </div>
-              </div>
-            )}
           </div>
 
-          
-
-          {/* Upcoming Plan */}
-          <div className={`p-3 rounded-lg border ${upcomingSub ? 'border-[#B87C4C]/20 bg-gradient-to-br from-[#F7F4EA]/60 to-white' : 'border-[#A8BBA3]/30 bg-gradient-to-br from-white to-[#F7F4EA]/80'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`w-6 h-6 ${upcomingSub ? 'bg-[#8E5C32]' : 'bg-gray-400'} rounded-full flex items-center justify-center`}>
-                <FiCalendar className="text-white w-3 h-3" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-gray-800">
-                  {upcomingSub ? "Next" : "None"}
-                </h4>
-                <p className="text-[10px] text-gray-500">Upcoming</p>
-              </div>
-            </div>
-            
-            {upcomingSub ? (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-gray-500">Plan</span>
-                  <span className="text-xs font-medium text-[#8E5C32] truncate ml-1">{upcomingSub.PlanId?.Name?.split(' ')[0]}</span>
-                </div>
-                <div className="pt-1">
-                  <span className="text-[10px] bg-[#B87C4C]/10 text-[#8E5C32] px-1.5 py-0.5 rounded-full">
-                    Scheduled
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => (window.location.href = "/dashboard?tab=purchase")}
-                className="text-[10px] text-[#B87C4C] hover:text-[#8E5C32] font-medium w-full text-center pt-1"
-              >
-                Browse →
-              </button>
-            )}
-          </div>
+          {/* Right Navigation Arrow */}
+          <button
+            onClick={() => setCardIndex(prev => Math.min(totalCards - 1, prev + 1))}
+            disabled={cardIndex >= totalCards - 1}
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-6 h-6 bg-white border border-gray-300 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
+
+        {/* Dots Indicator */}
+        {totalCards > 1 && (
+          <div className="flex justify-center gap-1 mt-3">
+            {Array.from({ length: totalCards }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setCardIndex(i)}
+                className={`w-1.5 h-1.5 rounded-full transition-all ${i === cardIndex ? 'bg-[#B87C4C]' : 'bg-gray-300'}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6 place-items-center">
+     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+
+
         {cards.map((card, index) => (
           <div
             key={index}

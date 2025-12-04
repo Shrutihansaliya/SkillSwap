@@ -7,7 +7,9 @@ import User from "../models/User.js";
 import SkillSwap from "../models/SkillSwap.js";
 import Subscription from "../models/Subscription.js";
 import Notification from "../models/Notification.js";
-import Category from "../models/SkillCategory.js";
+// import Category from "../models/SkillCategory.js";
+import SkillCategory from "../models/SkillCategory.js";
+// server/controllers/requestController.js
 
 
 /*
@@ -324,117 +326,141 @@ export const cancelRequest = async (req, res) => {
 
 
 
-
+/**
+ * GET /api/requests/members
+ * Returns: { success: true, members: [ { ...user, Skills: [{...userSkill, Skill}], SwapsRemaining } ] }
+ */
 export const getAllMembersWithSkills = async (req, res) => {
   try {
-    // 1️⃣ Fetch all users (except admin)
+    // 1) Get active users (non-admin, not suspended, not inactive)
     const users = await User.find({
       Role: { $ne: "Admin" },
-      $or: [
-        { isSuspended: { $ne: true } },
-        { isSuspended: { $exists: false } },
-      ],
+      $or: [{ isSuspended: { $ne: true } }, { isSuspended: { $exists: false } }],
       Status: { $ne: "Inactive" },
     })
-      .populate("City", "cityName")         // ⭐ Populate cityName
+      .populate("City", "cityName")
       .lean();
+
+    if (!users || users.length === 0) {
+      return res.json({ success: true, members: [] });
+    }
 
     const userIds = users.map((u) => u._id);
 
-    // 2️⃣ Fetch all user-skills for these users
-    const allUserSkills = await UserSkill.find({
+    // 2) Fetch all UserSkill entries for these users (only Available)
+    const userSkills = await UserSkill.find({
       UserId: { $in: userIds },
       SkillAvailability: "Available",
     }).lean();
 
-    const skillIds = allUserSkills.map((s) => s.SkillId);
-
-    // 3️⃣ Fetch skills only once
-    const allSkills = await Skill.find({ SkillId: { $in: skillIds } }).lean();
-
-    // Map SkillId → Skill Object
+    // 3) Collect SkillIds and fetch skill details in one go
+    const skillIds = Array.from(new Set(userSkills.map((us) => us.SkillId)));
+    const skills = await Skill.find({ SkillId: { $in: skillIds } }).lean();
     const skillMap = {};
-    allSkills.forEach((s) => {
-      skillMap[s.SkillId] = s;
-    });
+    skills.forEach((s) => (skillMap[s.SkillId] = s));
 
-    // 4️⃣ Fetch subscriptions only once
-    const subscriptions = await Subscription.find({
-      UserId: { $in: userIds },
-    }).lean();
-
+    // 4) Fetch subscriptions map
+    const subs = await Subscription.find({ UserId: { $in: userIds } }).lean();
     const subMap = {};
-    subscriptions.forEach((s) => {
+    subs.forEach((s) => {
+      // keep the latest active plan for swaps remaining (if multiple, pick Active)
       subMap[s.UserId] = s;
     });
 
-    // 5️⃣ Merge everything
-    const finalMembers = users.map((user) => {
-      const skills = allUserSkills
-        .filter((s) => String(s.UserId) === String(user._id))
-        .map((s) => ({
-          ...s,
-          Skill: skillMap[s.SkillId] || null, // attach full skill
+    // 5) Merge
+    const final = users.map((u) => {
+      const skillsForUser = userSkills
+        .filter((us) => String(us.UserId) === String(u._id))
+        .map((us) => ({
+          ...us,
+          Skill: skillMap[us.SkillId] || null,
         }));
 
       return {
-        ...user,
-        Skills: skills,
-        SwapsRemaining: subMap[user._id]?.SwapsRemaining ?? 0,
+        ...u,
+        Skills: skillsForUser,
+        SwapsRemaining: subMap[u._id]?.SwapsRemaining ?? 0,
       };
     });
 
-    res.json({ success: true, members: finalMembers });
+    return res.json({ success: true, members: final });
   } catch (err) {
-    console.error("Error fetching users:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("getAllMembersWithSkills error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-// ✅ GET ALL CATEGORIES
-
-
-// ===============================
-// GET ALL CATEGORIES + THEIR SKILLS
-// ===============================
-
-
+/**
+ * GET /api/requests/categories
+ * Returns: { success: true, categories: [ { ...cat, skills: [ skill ] } ] }
+ */
 export const getAllCategoriesWithSkills = async (req, res) => {
   try {
-    // 1️⃣ Get all categories
-    const categories = await Category.find({ status: "Active" })
-      .sort({ CategoryName: 1 })
-      .lean();
+    const categories = await SkillCategory.find().lean() || [];
+    const allSkills = await Skill.find().lean() || [];
 
-    // 2️⃣ For each category, load its skills
-    const finalData = await Promise.all(
-      categories.map(async (cat) => {
-        const skills = await Skill.find({
-          CategoryId: cat.CategoryId,
-          Status: "Active",
-        })
-          .sort({ Name: 1 })
-          .lean();
-
-        return {
-          ...cat,
-          Skills: skills, // Add skills under this category
-        };
-      })
-    );
-
-    return res.json({
-      success: true,
-      categories: finalData,
+    // map skills by CategoryId
+    const merged = categories.map((cat) => {
+      const catSkills = allSkills.filter(
+        (s) => Number(s.CategoryId) === Number(cat.CategoryId)
+      );
+      return {
+        ...cat,
+        skills: catSkills,
+      };
     });
+
+    return res.json({ success: true, categories: merged });
   } catch (err) {
-    console.error("Error fetching categories with skills:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error while fetching categories & skills",
-    });
+    console.error("getAllCategoriesWithSkills error:", err);
+    return res.status(500).json({ success: false, message: "Failed to load categories" });
   }
 };
+
+
+
+
+
+
+
+
+// =============================
+// GET MEMBERS BASED ON FILTERS
+// =============================
+// export const getMembersForSkillSwap = async (req, res) => {
+//   try {
+//     const { skillId, search } = req.query;
+
+//     let query = {};
+
+//     // Filter by skill selected
+//     if (skillId) {
+//       query["UserSkills.SkillId"] = skillId;
+//     }
+
+//     // Username / city / skill search
+//     if (search && search.trim() !== "") {
+//       const term = new RegExp(search.trim(), "i");
+
+//       query.$or = [
+//         { Username: term },
+//         { City: term },
+//         { "UserSkills.SkillName": term },
+//       ];
+//     }
+
+//     const users = await User.find(query).populate("UserSkills.SkillId");
+
+//     return res.json({
+//       success: true,
+//       members: users,
+//     });
+//   } catch (err) {
+//     console.log("Search Error:", err);
+//     res.status(500).json({ success: false, message: "Server error" });
+//   }
+// };
+
 
 
 // ✅ SENT REQUESTS

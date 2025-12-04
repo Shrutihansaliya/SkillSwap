@@ -81,13 +81,20 @@ function PurchaseSubscription({ userId }) {
         return;
       }
 
-      const { key, orderId, amount } = res.data;
+      // const { key, orderId, amount } = res.data;
+      const { key, orderId, amount, contact, email } = res.data;
+
       const rzp = new window.Razorpay({
         key,
         amount: Math.round(Number(amount) * 100),
         currency: "INR",
         name: "SkillSwap Subscription",
         order_id: orderId,
+         prefill: {
+    contact: contact,     // 👈 AUTO-FILL MOBILE
+    email: email,         // 👈 optional
+    name: userId          // (optional)
+  },
         handler: async (response) => {
           try {
             await axios.post(

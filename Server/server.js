@@ -92,6 +92,7 @@ app.use(
   "/uploads/materials",
   express.static(path.join(__dirname, "uploads", "materials"))
 );
+app.use("/icons", express.static("icons"));
 
 // ------------------------
 // Route registrations

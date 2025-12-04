@@ -39,13 +39,23 @@ export const createOrder = async (req, res) => {
       razorpay_order_id: order.id,
       status: "Created",
     });
+    const user = await User.findById(userId);
 
-    res.json({
-      success: true,
-      key: process.env.RAZORPAY_KEY_ID,
-      orderId: order.id,
-      amount,
-    });
+res.json({
+  success: true,
+  key: process.env.RAZORPAY_KEY_ID,
+  orderId: order.id,
+  amount,
+  contact: user.ContactNo,   // 👈 send user mobile
+  email: user.Email          // 👈 optional but useful
+});
+
+    // res.json({
+    //   success: true,
+    //   key: process.env.RAZORPAY_KEY_ID,
+    //   orderId: order.id,
+    //   amount,
+    // });
   } catch (err) {
     console.log("Order Error:", err);
     res.status(500).json({ success: false, message: "Order creation failed" });
