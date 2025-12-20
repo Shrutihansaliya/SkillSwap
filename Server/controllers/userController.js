@@ -232,6 +232,69 @@ export const verifyOtp = async (req, res) => {
       Status: "Active",
     });
     await newUser.save();
+// ✅ Send Registration Success Email
+await transporter.sendMail({
+  from: `"SkillSwap" <${process.env.SENDER_EMAIL}>`,
+  to: newUser.Email,
+  subject: "🎉 Registration Successful – Welcome to SkillSwap!",
+  html: `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Registration Successful</title>
+  </head>
+  <body style="margin:0;padding:0;font-family:Arial, sans-serif;background-color:#f4f4f7;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+      <tr>
+        <td align="center">
+          <table width="600" style="background:#ffffff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1);overflow:hidden;">
+            
+            <!-- Header -->
+            <tr>
+              <td style="background:linear-gradient(90deg,#4f46e5,#a78bfa,#f472b6);padding:40px;text-align:center;">
+                <h1 style="color:#ffffff;margin:0;">Welcome to SkillSwap 🎉</h1>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding:40px 30px;text-align:center;">
+                <p style="font-size:18px;color:#374151;">
+                  Hi <strong>${newUser.Username}</strong>,
+                </p>
+
+                <p style="font-size:16px;color:#374151;margin-top:20px;">
+                  🎊 You have successfully registered on <strong>SkillSwap</strong>!
+                </p>
+
+                <p style="font-size:15px;color:#6b7280;margin-top:20px;">
+                  As a welcome gift, we’ve added <strong>2 FREE Skill Swaps</strong> to your account.
+                </p>
+
+                <p style="font-size:15px;color:#6b7280;margin-top:20px;">
+                  Start adding skills, swapping knowledge, and growing your network 🚀
+                </p>
+
+              
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="background:#f9fafb;padding:20px;text-align:center;font-size:12px;color:#9ca3af;">
+                © ${new Date().getFullYear()} SkillSwap. All rights reserved.
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+  </html>
+  `,
+});
 
     // 🎁 Create FREE 2 Swap Plan
 //     try {
