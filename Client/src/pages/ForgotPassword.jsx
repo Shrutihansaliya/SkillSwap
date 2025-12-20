@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import toast, { Toaster } from "react-hot-toast";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
@@ -19,10 +20,10 @@ function ForgotPassword() {
         { Email: email },
         { withCredentials: true }
       );
-      alert(res.data.message);
+      toast.success(res.data.message);
       navigate("/otp-verify-forgot", { state: { email } });
     } catch (err) {
-      alert(err.response?.data?.message || err.message);
+      toast.error(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
@@ -87,6 +88,7 @@ function ForgotPassword() {
       </div>
 
       <Footer />
+      <Toaster position="top-center" />
     </>
   );
 }

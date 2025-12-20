@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
+import toast, { Toaster } from "react-hot-toast";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
 function OtpVerifyForgot() {
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otpStatus, setOtpStatus] = useState("");
+  const [vibrate, setVibrate] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -17,16 +20,30 @@ function OtpVerifyForgot() {
 
   const handleVerify = async (e) => {
     e.preventDefault();
+    const otpString = otp.join("");
+    
+    if (otpString.length !== 6) {
+      setOtpStatus("wrong");
+      setVibrate(true);
+      toast.error("Please enter all 6 digits");
+      setTimeout(() => setVibrate(false), 500);
+      return;
+    }
+
     try {
       const res = await axios.post(
         "http://localhost:4000/api/forgot-password/verify-otp",
-        { Email: email, otp },
+        { Email: email, otp: otpString },
         { withCredentials: true }
       );
-      alert(res.data.message);
+      setOtpStatus("correct");
+      toast.success(res.data.message);
       navigate("/reset-password", { state: { email } });
     } catch (err) {
-      alert(err.response?.data?.message || err.message);
+      setOtpStatus("wrong");
+      setVibrate(true);
+      toast.error(err.response?.data?.message || err.message);
+      setTimeout(() => setVibrate(false), 500);
     }
   };
 
@@ -39,9 +56,9 @@ function OtpVerifyForgot() {
         { Email: email },
         { withCredentials: true }
       );
-      alert(res.data.message);
+      toast.success(res.data.message);
     } catch (err) {
-      alert(err.response?.data?.message || err.message);
+      toast.error(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
@@ -57,22 +74,82 @@ function OtpVerifyForgot() {
           </h2>
 
           <form onSubmit={handleVerify} className="space-y-6">
-            <div>
-             
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                placeholder="Enter OTP"
-                required
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-700 placeholder-gray-400 transition"
-              />
+            {/* OTP Input Boxes */}
+            <div className="flex justify-center gap-3">
+              {otp.map((digit, index) => (
+                <input
+                  key={index}
+                  ref={(el) => (window[`otpInputForgot${index}`] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength="1"
+                  value={digit}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    if (value) {
+                      const newOtp = [...otp];
+                      newOtp[index] = value;
+                      setOtp(newOtp);
+                      setOtpStatus("");
+
+                      // Auto focus to next box
+                      if (index < 5) {
+                        window[`otpInputForgot${index + 1}`]?.focus();
+                      }
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    // Backspace to previous box
+                    if (e.key === "Backspace" && !otp[index] && index > 0) {
+                      window[`otpInputForgot${index - 1}`]?.focus();
+                    }
+                    // Delete key
+                    if (e.key === "Delete" || (e.key === "Backspace" && otp[index])) {
+                      const newOtp = [...otp];
+                      newOtp[index] = "";
+                      setOtp(newOtp);
+                      setOtpStatus("");
+                    }
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "");
+                    if (pastedData.length === 6) {
+                      const newOtp = pastedData.split("");
+                      setOtp(newOtp);
+                      window[`otpInputForgot5`]?.focus();
+                    }
+                  }}
+                  className={`w-14 h-14 border-2 rounded-xl text-center text-2xl font-bold transition-all duration-300 focus:outline-none ${
+                    otpStatus === "correct"
+                      ? "border-green-500 bg-green-50 text-green-600"
+                      : otpStatus === "wrong"
+                      ? "border-red-500 bg-red-50 text-red-600"
+                      : "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                  }`}
+                  style={
+                    vibrate && otpStatus === "wrong"
+                      ? {
+                          animation: "vibrate 0.1s 4",
+                        }
+                      : {}
+                  }
+                />
+              ))}
             </div>
+
+            <style>{`
+              @keyframes vibrate {
+                0%, 100% { transform: translateX(0); }
+                25% { transform: translateX(-5px); }
+                75% { transform: translateX(5px); }
+              }
+            `}</style>
 
             <button
               type="submit"
-           className="w-full py-2.5 bg-gradient-to-r from-indigo-800 to-indigo-600 hover:from-indigo-800 hover:to-indigo-800 text-white font-semibold rounded-xl shadow-md transition-all duration-300"
- >
+              className="w-full py-3 bg-gradient-to-r from-indigo-800 to-indigo-600 hover:from-indigo-800 hover:to-indigo-800 text-white font-semibold rounded-xl shadow-md transition-all duration-300"
+            >
               Verify OTP
             </button>
           </form>
@@ -91,6 +168,7 @@ function OtpVerifyForgot() {
         </div>
       </div>
       <Footer />
+      <Toaster position="top-center" />
     </>
   );
 }
