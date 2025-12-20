@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
+import toast, { Toaster } from "react-hot-toast";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import {
@@ -39,7 +40,9 @@ function Register() {
 
   const [cities, setCities] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otpStatus, setOtpStatus] = useState(""); // "", "correct", "wrong"
+  const [vibrate, setVibrate] = useState(false);
   const [step, setStep] = useState(1);
   const [emailForOtp, setEmailForOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -205,11 +208,11 @@ function Register() {
         }
       );
 
-      alert("✅ " + res.data.message);
+      toast.success(res.data.message);
       setEmailForOtp(form.Email);
       setStep(2);
     } catch (err) {
-      alert("❌ " + (err.response?.data?.message || err.message));
+      toast.error(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
@@ -217,14 +220,25 @@ function Register() {
 
   const handleOtpVerify = async (e) => {
     e.preventDefault();
+    const otpString = otp.join("");
+    
+    if (otpString.length !== 6) {
+      setOtpStatus("wrong");
+      setVibrate(true);
+      toast.error("Please enter all 6 digits");
+      setTimeout(() => setVibrate(false), 500);
+      return;
+    }
+
     try {
       const res = await axios.post(
         "http://localhost:4000/api/users/verify-otp",
-        { email: emailForOtp, otp },
+        { email: emailForOtp, otp: otpString },
         { withCredentials: true }
       );
 
-      alert("✅ " + res.data.message);
+      setOtpStatus("correct");
+      toast.success(res.data.message);
 
       // ✅ Save correct user format required by Dashboard & AddSkill
       localStorage.setItem(
@@ -238,13 +252,16 @@ function Register() {
 
       navigate("/add-skill"); // Go to skill add page
     } catch (err) {
-      alert("❌ " + (err.response?.data?.message || err.message));
+      setOtpStatus("wrong");
+      setVibrate(true);
+      toast.error(err.response?.data?.message || err.message);
+      setTimeout(() => setVibrate(false), 500);
     }
   };
 
   const handleResendOtp = async () => {
     if (!emailForOtp) {
-      alert("Email not found. Please register again.");
+      toast.error("Email not found. Please register again.");
       setStep(1);
       return;
     }
@@ -256,9 +273,9 @@ function Register() {
         { email: emailForOtp },
         { withCredentials: true }
       );
-      alert("🔁 " + res.data.message);
+      toast.success(res.data.message);
     } catch (err) {
-      alert("❌ " + (err.response?.data?.message || err.message));
+      toast.error(err.response?.data?.message || err.message);
     } finally {
       setResendLoading(false);
     }
@@ -282,7 +299,11 @@ function Register() {
 
   return (
     <>
-<Header />
+      <Header />
+      {/* Toast Notifications */}
+      <div className="fixed top-0 left-0 right-0 z-50">
+        {/* Toast will appear here */}
+      </div>
 
 <div className="min-h-screen flex items-center justify-center 
     bg-gradient-to-br from-[#A8BBA3] via-[#F7F4EA] to-[#A8BBA3]
@@ -681,27 +702,83 @@ function Register() {
 
                 <form
                   onSubmit={handleOtpVerify}
-                  className="flex flex-col gap-4 items-center"
+                  className="flex flex-col gap-6 items-center w-full"
                 >
-<input
-  type="text"
-  placeholder="Enter OTP"
-  value={otp}
-  onChange={(e) => {
-    // Only number allow + max 6 digit
-    const onlyNums = e.target.value.replace(/\D/g, "");
-    setOtp(onlyNums.slice(0, 6));
-  }}
-  required
-  maxLength={6}
-  pattern="[0-9]{6}"
-  className="w-full px-4 py-3 border border-gray-300 rounded-2xl text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-center tracking-[0.4em] text-lg font-semibold"
-/>
+                  {/* OTP Input Boxes */}
+                  <div className="flex justify-center gap-3 w-full">
+                    {otp.map((digit, index) => (
+                      <input
+                        key={index}
+                        ref={(el) => (window[`otpInput${index}`] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength="1"
+                        value={digit}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, "");
+                          if (value) {
+                            const newOtp = [...otp];
+                            newOtp[index] = value;
+                            setOtp(newOtp);
+                            setOtpStatus("");
 
+                            // Auto focus to next box
+                            if (index < 5) {
+                              window[`otpInput${index + 1}`]?.focus();
+                            }
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          // Backspace to previous box
+                          if (e.key === "Backspace" && !otp[index] && index > 0) {
+                            window[`otpInput${index - 1}`]?.focus();
+                          }
+                          // Delete key
+                          if (e.key === "Delete" || (e.key === "Backspace" && otp[index])) {
+                            const newOtp = [...otp];
+                            newOtp[index] = "";
+                            setOtp(newOtp);
+                            setOtpStatus("");
+                          }
+                        }}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pastedData = e.clipboardData.getData("text").replace(/\D/g, "");
+                          if (pastedData.length === 6) {
+                            const newOtp = pastedData.split("");
+                            setOtp(newOtp);
+                            window[`otpInput5`]?.focus();
+                          }
+                        }}
+                        className={`w-14 h-14 border-2 rounded-xl text-center text-2xl font-bold transition-all duration-300 focus:outline-none ${
+                          otpStatus === "correct"
+                            ? "border-green-500 bg-green-50 text-green-600"
+                            : otpStatus === "wrong"
+                            ? "border-red-500 bg-red-50 text-red-600"
+                            : "border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                        }`}
+                        style={
+                          vibrate && otpStatus === "wrong"
+                            ? {
+                                animation: "vibrate 0.1s 4",
+                              }
+                            : {}
+                        }
+                      />
+                    ))}
+                  </div>
+
+                  <style>{`
+                    @keyframes vibrate {
+                      0%, 100% { transform: translateX(0); }
+                      25% { transform: translateX(-5px); }
+                      75% { transform: translateX(5px); }
+                    }
+                  `}</style>
 
                   <button
                     type="submit"
-                    className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl font-semibold hover:shadow-lg hover:opacity-95 transition flex items-center justify-center gap-2 text-sm"
+                    className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl font-semibold hover:shadow-lg hover:opacity-95 transition flex items-center justify-center gap-2 text-sm"
                   >
                     <FaCheckCircle />
                     Verify OTP & Continue
@@ -746,6 +823,7 @@ function Register() {
       </div>
 
       <Footer />
+      <Toaster position="top-center" />
     </>
   );
 }
