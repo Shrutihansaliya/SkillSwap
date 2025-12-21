@@ -156,11 +156,7 @@ function Dashboard() {
       {/* Sidebar */}
       <aside
         className="
-          flex flex-col 
-          w-64 
-          bg-[#F7F4EA] 
-          backdrop-blur-xl 
-          shadow-2xl 
+         relative z-30 flex flex-col w-64 bg-[#F7F4EA] backdrop-blur-xl shadow-2xl 
           border-r border-[#A8BBA3]/50 
           px-4 py-5
         "
@@ -234,17 +230,19 @@ function Dashboard() {
       {/* Main */}
       <div className="flex-1 flex flex-col">
         {/* Navbar */}
-        <header
-          className="
-            flex items-center justify-between 
-            px-4 sm:px-8 
-            h-16 sm:h-20 
-            bg-[#F7F4EA]/90 
-            backdrop-blur-xl 
-            shadow-md 
-            border-b border-[#A8BBA3]/50
-          "
-        >
+       <header
+  className="
+    relative z-40
+    flex items-center justify-between 
+    px-4 sm:px-8 
+    h-16 sm:h-20 
+    bg-[#F7F4EA]/90 
+    backdrop-blur-xl 
+    shadow-md 
+    border-b border-[#A8BBA3]/50
+  "
+>
+
           <div>
             <p className="text-xs text-gray-500">Welcome back,</p>
             <h2 className="text-xl sm:text-2xl font-bold capitalize bg-gradient-to-r from-[#B87C4C] to-[#8E5C32] bg-clip-text text-transparent tracking-wide">
@@ -290,7 +288,8 @@ function Dashboard() {
   </button>
 
   {showMenu && (
-    <div className="absolute right-0 mt-2 w-44 sm:w-48 bg-[#F7F4EA]/95 backdrop-blur-xl shadow-lg rounded-xl border border-[#A8BBA3]/60 z-[50]">
+   <div className="absolute right-0 mt-2 w-44 sm:w-48 bg-[#F7F4EA]/95 backdrop-blur-xl shadow-lg rounded-xl border border-[#A8BBA3]/60 z-[999]">
+
       <div className="p-3 border-b border-[#A8BBA3]/40 text-center">
         <p className="font-semibold text-gray-800 text-sm">
           {user?.Username || "User"}
@@ -350,10 +349,16 @@ function Dashboard() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+       <main className="flex-1 p-4 sm:p-6 overflow-y-auto relative z-0">
+
           <div className="max-w-6xl mx-auto">
             {activeTab === "overview" && <Overview userId={userId} />}
-            {activeTab === "profile" && <Profile />}
+          {activeTab === "profile" && (
+  <div className="relative z-10 isolate">
+    <Profile />
+  </div>
+)}
+
             {activeTab === "swaprequest" && <SkillSwapRequest />}
             {activeTab === "requestinfo" && <RequestsPage />}
             {activeTab === "activityhistory" && <ActivityHistory />}

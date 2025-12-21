@@ -36,9 +36,21 @@ export const getAllSkills = async (req, res) => {
 };
 
 // Get categories
+// export const getCategories = async (req, res) => {
+//   try {
+//     const categories = await SkillCategory.find().sort({ CategoryName: 1 });
+//     res.json(categories);
+//   } catch (error) {
+//     res.status(500).json({ message: "Error fetching categories", error });
+//   }
+// };
+// Get categories (ONLY ACTIVE)
 export const getCategories = async (req, res) => {
   try {
-    const categories = await SkillCategory.find().sort({ CategoryName: 1 });
+    const categories = await SkillCategory.find({
+      status: "Active"
+    }).sort({ CategoryName: 1 });
+
     res.json(categories);
   } catch (error) {
     res.status(500).json({ message: "Error fetching categories", error });

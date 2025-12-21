@@ -1,0 +1,113 @@
+package collection;
+import java.util.*;
+class Student
+{
+	int Sno;
+	String Sname;
+	void getdata(int n,String st)
+	{
+		Sno=n;
+		Sname=st;
+	}
+	void display()
+	{
+		System.out.println("id="+Sno);
+		System.out.println("name="+Sname);
+	}
+}
+public class ArrayListExample1 {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+		//creates a non-generic Array List
+				ArrayList al = new ArrayList();
+				System.out.println("\n Initial size of an al : " 
+				+ al.size());
+				
+				//Add Elements
+				al.add("A");
+				al.add("B");
+				al.add(10);
+				al.add("C");
+				al.add("A");
+				al.add("B");
+				
+				//add element at specific index
+				al.add(1, "D");
+				System.out.println("\n  size of an al : " 
+						+ al.size());
+				System.out.println("\n Content of al : " + al);
+		//Generic Array List
+		//ArrayList al = new ArrayList();
+		 ArrayList<String> list=new ArrayList<String>();//Creating arraylist    
+	      list.add("Mango");//Adding object in ArrayList    
+	      list.add("Apple");    
+	      list.add("Banana");    
+	      list.add("Grapes");  
+	      //list.add(1);
+	      //Printing the ArrayList object   
+	      System.out.println(list);
+	      System.out.println("size of list="+list.size());
+	    
+	      
+	      //Traversing list through Iterator  
+	      Iterator itr=list.iterator();//getting the Iterator  
+	      while(itr.hasNext()){//check if iterator has the elements  
+	       System.out.println(itr.next());//printing the element and move to next  
+	      }
+	      
+	      
+	      //Traversing list through for-each loop  
+	      for(String fruit:list)    
+	        System.out.println(fruit); 
+	      
+	      
+	      list.remove(0);
+	     for(String fruit:list)    
+		        System.out.println(fruit);  
+	     
+	     
+	      if(list.contains("Mango"))
+	    	  System.out.println("Search Successfull");
+	      else 
+	    	  System.out.println("Not found");
+	      
+	      
+	      ArrayList<Integer> list1=new ArrayList<Integer>();//Creating arraylist    
+	      list1.add(1);//Adding object in ArrayList    
+	      list1.add(2);    
+	      list1.add(3);    
+	      list1.add(4); 
+	      System.out.println(list1);
+	     ArrayList<Integer> list5=new ArrayList<Integer>();
+	      list5.add(1);//Adding object in ArrayList    
+	      list5.add(2);    
+	      list5.add(3);    
+	      list5.add(4); 
+	     list1.addAll(list5);
+	   //  list1.removeAll(list5);
+	      //Printing the ArrayList object   
+	      System.out.println(list1);  
+	     
+	      Student s=new Student();
+	      s.getdata(1, "ABC");
+	      Student s1=new Student();
+	      s1.getdata(2, "PQR");
+	      
+	      ArrayList<Student> list2=new ArrayList<Student>();//Creating arraylist    
+	      list2.add(s);//Adding object in ArrayList    
+	      list2.add(s1);  
+	      Student sd=new Student();
+	      System.out.println("content of list student");
+	      System.out.println(list2);  
+	    //  Iterator itr1=list2.iterator();//getting the Iterator
+	     for(Student ss:list2)
+	    	  ss.display();
+	     
+	      //Printing the ArrayList object   
+	     System.out.println(list2.get(0).Sno); 
+	      System.out.println(list2.get(0).Sname); 
+	      
+	}
+
+}

@@ -1,0 +1,61 @@
+package collection;
+import java.util.*;
+public class LinkedList1 {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+	  
+		  LinkedList<String> al=new LinkedList<String>();  
+		  al.add("Ravi");  
+		  al.add("Vijay");  
+		  al.add("Ravi");  
+		  al.add("Ajay");  
+		  
+		  Iterator<String> itr=al.iterator();  
+		  while(itr.hasNext()){  
+		   System.out.println(itr.next());
+		//Linked List
+		LinkedList<String> linkedList = new LinkedList<String>();
+		for(int j=0;j<5;j++)
+		{
+				linkedList.add("Item " + j);
+		}
+				
+		System.out.println("\n Content of linked list " + linkedList);
+		linkedList.set(1, "Item 5");
+		System.out.println("\n Content of linked list " + linkedList);
+		//remove()
+		linkedList.remove(4);
+		linkedList.addFirst("Item 6");
+		linkedList.addLast("Item 7");
+		linkedList.removeFirst();
+		linkedList.removeLast();
+		System.out.println("\n Content of linked list " + linkedList);
+				
+				linkedList.add("Item 1");
+				linkedList.add("Item 2");
+				linkedList.add("Item 1");
+				//linkedlist.add(2,"Item 9");
+				System.out.println("\n Content of linked list " + linkedList);
+				
+				linkedList.removeFirstOccurrence("Item 1");
+				System.out.println("\n Content of linked list " + linkedList);
+				
+				linkedList.removeLastOccurrence("Item 2");
+				System.out.println("\n Content of linked list " + linkedList);
+				
+				//Traversing list in descending order
+		Iterator iterator = linkedList.descendingIterator();
+				while(iterator.hasNext())
+				{
+					System.out.println("\n" + iterator.next());
+				}
+				
+
+		  }  
+		   
+		
+
+	}
+}
+

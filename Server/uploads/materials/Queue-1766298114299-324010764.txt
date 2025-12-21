@@ -1,0 +1,106 @@
+package collection;
+
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.PriorityQueue;
+import java.util.Queue;
+
+public class QueueDemo {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+		//Linked List
+		Queue<Integer> q = new LinkedList<Integer>();
+		
+		//add elements
+		for(int i =0 ;i<5;i++)
+		{
+			q.add(i);
+		}
+		
+		System.out.println("Content of q :" + q);
+		
+		//remove the head
+		int removehead = q.remove();
+		System.out.println("Content of q after head removal : " + removehead);
+		
+		int removehead1 = q.remove();
+		System.out.println("Content of q after head removal : " + removehead1);
+	/*The peek() method returns the object at the top of the 
+	  current queue, without removing it. If the queue is empty 
+	  this method returns null.
+	  The poll() method of the Queue interface returns the object 
+	  at the top of the current queue and removes it. 
+	  If the queue is empty this method returns null.
+	 */
+		System.out.println("\n content of queue : " + q);
+		System.out.println("\n head of queue : " + q.peek());
+		System.out.println("\n content of queue : " + q.size());
+		
+		//poll method (Return and remove the head of the queue)
+		System.out.println("\n poll method : " + q.poll());
+		System.out.println("\n content of q : " + q);
+		
+		
+		Queue<String> q1 = new PriorityQueue<String>();
+		q1.add("Element 1");
+		q1.add("Element 2");
+		q1.add("Element 3");
+		q1.offer("Element 4");
+		
+		System.out.println("Content of q1 : " + q1.peek());
+		System.out.println("Content of q1 : " + q1.poll());
+		System.out.println("Content of q1 : " + q1.peek());
+		
+		Iterator i = q1.iterator();
+		while(i.hasNext())
+		{
+			System.out.println("\n" + i.next());
+			
+			
+		}
+		
+		Queue<Book> book = new LinkedList<Book>();
+		Book b1 = new Book(101, "Java Programming", "Rajukumar buyya");
+		Book b2 = new Book(102, "Android Programming","Wei Ming Li");
+		
+		book.add(b1);
+		book.offer(b2);
+		
+		Iterator i1 = book.iterator();
+		while(i1.hasNext())
+		{
+			Book b3 = (Book)i1.next();
+			System.out.println("Content of book");
+			System.out.println(b3.id + "," + b3.title + "," + b3.Author);
+		}
+		book.remove();
+		for(Book b : book)
+		{
+			System.out.println(b.id + "," + b.title + "," + b.Author);
+		}
+		
+		Deque<String> deque = new ArrayDeque<String>();
+		deque.add("Element 1");
+		deque.addFirst("Element 2");
+		deque.addLast("Element 3");
+		System.out.println(deque);
+	}
+
+	
+}
+
+class Book
+{
+	int id;
+	String title, Author;
+	
+	Book(int ID, String title, String author)
+	{
+		this.id = ID;
+		this.title = title;
+		this.Author = author;
+	}
+}
