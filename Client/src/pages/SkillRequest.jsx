@@ -243,6 +243,9 @@
 //   );
 // }
 // SkillRequest.jsx
+
+
+
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
@@ -387,7 +390,7 @@ export default function SkillRequest() {
     <div className="bg-[#F7F4EA] rounded-2xl p-6 shadow-lg border border-[#A8BBA3]/60">
       <h3 className="text-2xl font-bold text-[#B87C4C] mb-4">Request a Skill</h3>
 
-      <p className="text-sm text-gray-600 mb-6">
+      <p className="text-sm text-gray-600 mb-4">
         If a skill isn't available, send a quick request to admin to add it. Just add a short message (optional).
       </p>
 

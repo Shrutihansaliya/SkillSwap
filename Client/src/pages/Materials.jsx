@@ -5,6 +5,8 @@ import { FaUpload } from "react-icons/fa";
 import { toast } from "react-toastify";   // ✅ Added
 
 const Materials = ({ selectedSwap, user, reloadSignal }) => {
+  const BACKEND_URL = "http://localhost:4000";
+
   const [materials, setMaterials] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -176,14 +178,16 @@ const Materials = ({ selectedSwap, user, reloadSignal }) => {
                       className="flex justify-between items-center p-3 rounded-xl shadow-sm border border-[#CBBFAE] bg-white/90"
                     >
                       <div>
-                        <a
-                          href={`/api/materials/stream/${mat._id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[#B87C4C] font-medium hover:underline break-all"
-                        >
-                          {mat.FileURL.split("/").pop()}
-                        </a>
+                       <a
+  href={`${BACKEND_URL}/${mat.FileURL}`}
+  target="_blank"
+  rel="noreferrer"
+  className="text-[#B87C4C] font-medium hover:underline break-all"
+>
+  {mat.FileURL.split("/").pop()}
+</a>
+
+
                         <p className="text-xs text-gray-500 mt-1">
                           Uploaded on{" "}
                           {new Date(mat.UploadedAt).toLocaleString()}
@@ -232,13 +236,14 @@ const Materials = ({ selectedSwap, user, reloadSignal }) => {
                       <div className="flex justify-between items-center">
                         <div>
                           <a
-                            href={`/api/materials/stream/${mat._id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[#31513A] font-medium hover:underline break-all"
-                          >
-                            {mat.FileURL.split("/").pop()}
-                          </a>
+  href={`${BACKEND_URL}/${mat.FileURL}`}
+  target="_blank"
+  rel="noreferrer"
+  className="text-[#31513A] font-medium hover:underline break-all"
+>
+  {mat.FileURL.split("/").pop()}
+</a>
+
                           <p className="text-xs text-gray-500 mt-1">
                             Uploaded by{" "}
                             <span className="font-medium text-[#8E5C32]">

@@ -2,9 +2,14 @@
 import React from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import { useNavigate } from "react-router-dom";
+
+
 import { FaExchangeAlt, FaChalkboardTeacher, FaUserGraduate, FaProjectDiagram, FaLightbulb, FaHandsHelping } from "react-icons/fa";
 
 function Services() {
+    const navigate = useNavigate();
+  
   const services = [
     {
       title: "Skill Exchange",
@@ -67,6 +72,7 @@ function Services() {
           <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {services.map((service, index) => (
               <div
+              onClick={() => navigate("/register")}
                 key={index}
                 className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col items-center text-center"
               >

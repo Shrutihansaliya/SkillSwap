@@ -12,6 +12,7 @@ import {
   FaCheckCircle,
   FaSignInAlt,
 } from "react-icons/fa";
+import { toast } from "react-toastify";   // ✅ Added
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -73,7 +74,8 @@ function Login() {
       if (res.data.user)
         localStorage.setItem("user", JSON.stringify(res.data.user));
 
-      alert("✅ " + res.data.message);
+      // alert("✅ " + res.data.message);
+    toast.success(res.data.message);   // ✅ CHANGED alert
 
       const userRole = res.data.role;
       if (userRole === "Admin") {

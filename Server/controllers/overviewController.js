@@ -88,7 +88,9 @@ export const getUserSwapHistory = async (req, res) => {
       return res.json({ success: false, swaps: [] });
     }
 
-    const swaps = await SkillSwap.find()
+   const swaps = await SkillSwap.find({
+      Status: { $in: ["Active", "Completed"] }   // ✅ ONLY these two
+    })
       .populate({
         path: "RequestId",
         match: {

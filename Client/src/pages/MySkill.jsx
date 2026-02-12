@@ -4860,7 +4860,7 @@ export default function MySkill({ userId }) {
 
     {/* Big Centered Popup */}
     <div
-      className="relative w-[95%] max-w-6xl h-[85vh] bg-white rounded-2xl shadow-2xl border overflow-auto"
+      className="relative w-[45%] max-w-6xl h-[75vh] bg-white rounded-2xl shadow-2xl border overflow-auto"
       style={{ animation: 'popupScale 150ms ease-out' }}
       onClick={(e) => e.stopPropagation()}
     >
